@@ -1,9 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import axios from "axios";
 
 const AuthContext = createContext(null);
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const AUTH_STORAGE_KEY = "attendqr_auth";
+const TRANSIENT_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
+class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
 
 function getStoredAuth() {
   try {
@@ -38,27 +47,45 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(storedAuth.user ?? null);
   const [token, setToken] = useState(storedAuth.token ?? "");
   const [classes, setClasses] = useState([]);
+  const [users, setUsers] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [enrollmentClasses, setEnrollmentClasses] = useState([]);
   const [activeQrSessions, setActiveQrSessions] = useState({});
+  const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(Boolean(storedAuth.token));
 
-  const request = async (path, options = {}) => {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
+  const request = async (path, options = {}, attempt = 0) => {
+    try {
+      const response = await axios({
+        url: `${API_URL}${path}`,
+        method: options.method || "GET",
+        data: options.body ? JSON.parse(options.body) : options.data,
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...options.headers,
+        },
+      });
 
-    const payload = await response.json().catch(() => ({}));
+      const payload = response.data ?? {};
+      return payload.data ?? payload;
+    } catch (error) {
+      const status = error.response?.status;
+      if (attempt < 2 && TRANSIENT_STATUSES.has(status)) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        return request(path, options, attempt + 1);
+      }
 
-    if (!response.ok) {
-      throw new Error(payload.message || "Request failed.");
+      if (status) {
+        throw new ApiError(error.response?.data?.message || "Request failed.", status);
+      }
+
+      if (!(error instanceof ApiError) && attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+        return request(path, options, attempt + 1);
+      }
+
+      throw error;
     }
-
-    return payload.data ?? payload;
   };
 
   const persistAuth = (nextUser, nextToken) => {
@@ -70,6 +97,18 @@ export function AuthProvider({ children }) {
     );
   };
 
+  const fetchEnrollmentClasses = async () => {
+    const response = await axios.get(`${API_URL}/classes/enrollment-options`);
+
+    const nextClasses = response.data?.data?.classes ?? [];
+    setEnrollmentClasses(nextClasses);
+    return nextClasses;
+  };
+
+  useEffect(() => {
+    fetchEnrollmentClasses().catch(() => setEnrollmentClasses([]));
+  }, []);
+
   const refreshWorkspace = async () => {
     if (!token || !currentUser) {
       return;
@@ -78,38 +117,46 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const classPath =
-        currentUser.role === "teacher" ? "/classes/teacher" : "/classes/student";
-      const [classData, attendanceData] = await Promise.all([
+        currentUser.role === "admin"
+          ? "/classes"
+          : currentUser.role === "teacher"
+            ? "/classes/teacher"
+            : "/classes/student";
+      const requests = [
         request(classPath),
         request("/attendance"),
-      ]);
+      ];
+
+      if (currentUser.role === "admin") {
+        requests.push(request("/admin/users"));
+      }
+
+      const [classData, attendanceData, userData] = await Promise.all(requests);
 
       setClasses(classData.classes ?? []);
       setAttendanceRecords(attendanceData.records ?? []);
+      setUsers(userData?.users ?? []);
+      setAuthNotice("");
+    } catch (error) {
+      if (error.status === 401) {
+        logout();
+        return;
+      }
+
+      setAuthNotice(error.message || "Workspace refresh failed. Please retry.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    refreshWorkspace().catch(() => {
-      logout();
-    });
+    refreshWorkspace();
   }, [token, currentUser?.id]);
 
   const login = async (email, password, role) => {
     try {
-      const data = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      }).then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.message || "Invalid email or password.");
-        }
-        return payload.data;
-      });
+      const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+      const data = response.data.data;
 
       if (role && data.user.role !== role) {
         return { success: false, error: `This account is not a ${role} account.` };
@@ -118,7 +165,7 @@ export function AuthProvider({ children }) {
       persistAuth(data.user, data.token);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error.response?.data?.message || error.message };
     }
   };
 
@@ -131,24 +178,26 @@ export function AuthProvider({ children }) {
         role: form.role,
         teacherId: form.teacherId,
         studentId: form.studentId,
-        studentClass: form.studentClass,
       };
 
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload.message || "Registration failed.");
+      if (form.role === "student") {
+        if (form.classId) {
+          body.classId = form.classId;
+        }
+        if (form.classCode) {
+          body.classCode = form.classCode;
+        }
+        if (form.studentClass) {
+          body.studentClass = form.studentClass;
+        }
       }
 
-      persistAuth(payload.data.user, payload.data.token);
+      const response = await axios.post(`${API_URL}/auth/register`, body);
+
+      persistAuth(response.data.data.user, response.data.data.token);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, error: error.response?.data?.message || error.message };
     }
   };
 
@@ -156,9 +205,30 @@ export function AuthProvider({ children }) {
     setCurrentUser(null);
     setToken("");
     setClasses([]);
+    setUsers([]);
     setAttendanceRecords([]);
     setActiveQrSessions({});
+    setAuthNotice("");
     localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      await request("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const nextUser = { ...currentUser, forcePasswordReset: false };
+      persistAuth(nextUser, token);
+      return { success: true };
+    } catch (error) {
+      if (error.status === 401) {
+        logout();
+      }
+
+      return { success: false, error: error.message };
+    }
   };
 
   const addClass = async (newClass) => {
@@ -171,6 +241,46 @@ export function AuthProvider({ children }) {
     });
     setClasses((previous) => [data.class, ...previous]);
     return data.class;
+  };
+
+  const getClassInvite = async (classCode) => {
+    return request(`/classes/join/${encodeURIComponent(classCode.trim())}`);
+  };
+
+  const joinClass = async (classCode) => {
+    try {
+      const data = await request(`/classes/join/${encodeURIComponent(classCode.trim())}`, {
+        method: "POST",
+      });
+
+      setClasses((previous) => {
+        if (previous.some((cls) => cls.id === data.class.id)) {
+          return previous;
+        }
+
+        return [data.class, ...previous];
+      });
+
+      if (!currentUser.classId) {
+        persistAuth(
+          {
+            ...currentUser,
+            classId: data.class.id,
+            class: data.class.name,
+            assignedClass: data.class,
+          },
+          token
+        );
+      }
+
+      return { success: true, class: data.class };
+    } catch (error) {
+      if (error.status === 401) {
+        logout();
+      }
+
+      return { success: false, error: error.message };
+    }
   };
 
   const deleteClass = async (classId) => {
@@ -269,14 +379,21 @@ export function AuthProvider({ children }) {
         token,
         loading,
         classes,
+        users,
         students,
         attendanceRecords,
         activeQrSessions,
+        authNotice,
+        enrollmentClasses,
         login,
         register,
+        fetchEnrollmentClasses,
         logout,
+        changePassword,
         refreshWorkspace,
         addClass,
+        getClassInvite,
+        joinClass,
         deleteClass,
         startQrSession,
         stopQrSession,

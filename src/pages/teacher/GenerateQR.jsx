@@ -8,6 +8,8 @@ export default function GenerateQR({ classId, teacherId }) {
   const payload = activeQrSessions[classId] ?? null;
   const [timeLeft, setTimeLeft] = useState(60);
   const [error, setError] = useState("");
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const isExpired = Boolean(payload && timeLeft <= 0);
 
   useEffect(() => {
     if (!payload) {
@@ -17,13 +19,7 @@ export default function GenerateQR({ classId, teacherId }) {
 
     const syncRemaining = () => {
       const remaining = Math.ceil((payload.expiresAt - Date.now()) / 1000);
-
-      if (remaining <= 0) {
-        startQrSession(classId).catch((err) => setError(err.message));
-        return;
-      }
-
-      setTimeLeft(remaining);
+      setTimeLeft(Math.max(remaining, 0));
     };
 
     syncRemaining();
@@ -33,6 +29,7 @@ export default function GenerateQR({ classId, teacherId }) {
 
   const beginSession = async () => {
     setError("");
+    setConfirmRegenerate(false);
     try {
       await startQrSession(classId, teacherId);
     } catch (err) {
@@ -42,6 +39,7 @@ export default function GenerateQR({ classId, teacherId }) {
 
   const endSession = () => {
     stopQrSession(classId);
+    setConfirmRegenerate(false);
   };
 
   const downloadQR = () => {
@@ -58,7 +56,9 @@ export default function GenerateQR({ classId, teacherId }) {
   };
 
   const timerColor =
-    timeLeft <= 10
+    isExpired
+      ? "text-red-300 border-red-500/40 bg-red-500/15"
+      : timeLeft <= 10
       ? "text-red-400 border-red-500/30 bg-red-500/10"
       : timeLeft <= 20
         ? "text-amber-400 border-amber-500/30 bg-amber-500/10"
@@ -91,8 +91,8 @@ export default function GenerateQR({ classId, teacherId }) {
             <div
               className={`flex items-center justify-between px-4 py-2.5 rounded-xl border text-sm font-mono font-bold ${timerColor}`}
             >
-              <span>Auto-refreshes in</span>
-              <span className="text-lg">{timeLeft}s</span>
+              <span>{isExpired ? "Expired" : "Expires in"}</span>
+              <span className="text-lg">{isExpired ? "Manual" : `${timeLeft}s`}</span>
             </div>
 
             {[
@@ -119,12 +119,43 @@ export default function GenerateQR({ classId, teacherId }) {
               </div>
             ))}
 
-            <button
-              onClick={endSession}
-              className="w-full mt-2 py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-semibold rounded-xl transition-all"
-            >
-              Stop Session
-            </button>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <button
+                onClick={() => setConfirmRegenerate(true)}
+                className="py-2 border border-sky-500/30 text-sky-300 hover:bg-sky-500/10 text-sm font-semibold rounded-xl transition-all"
+              >
+                Regenerate
+              </button>
+              <button
+                onClick={endSession}
+                className="py-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 text-sm font-semibold rounded-xl transition-all"
+              >
+                Stop Session
+              </button>
+            </div>
+
+            {confirmRegenerate && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+                <p className="text-amber-100 font-semibold">Replace the current QR?</p>
+                <p className="text-amber-200/70 text-xs mt-1">
+                  The old QR will stop working as soon as a new one is generated.
+                </p>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <button
+                    onClick={beginSession}
+                    className="rounded-lg bg-amber-400 text-slate-950 py-2 font-bold"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setConfirmRegenerate(false)}
+                    className="rounded-lg border border-slate-600 text-slate-300 py-2 font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

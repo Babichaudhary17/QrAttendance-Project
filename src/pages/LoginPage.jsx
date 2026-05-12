@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import Icon from "../Components/UI/Icon";
 import { QRIcon } from "../Components/UI/Icon";
@@ -9,16 +9,24 @@ const emptyForm = {
   password: "",
   teacherId: "",
   studentId: "",
+  classId: "",
+  classCode: "",
   studentClass: "",
 };
 
 export default function LoginPage() {
-  const { login, register } = useAuth();
+  const { enrollmentClasses, fetchEnrollmentClasses, login, register } = useAuth();
   const [mode, setMode] = useState("login");
   const [role, setRole] = useState("teacher");
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (mode === "register" && role === "student") {
+      fetchEnrollmentClasses?.().catch(() => {});
+    }
+  }, [mode, role]);
 
   const update = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -43,8 +51,8 @@ export default function LoginPage() {
         setError("Teacher ID is required.");
         return;
       }
-      if (role === "student" && (!form.studentId || !form.studentClass)) {
-        setError("Student ID and class are required.");
+      if (role === "student" && !form.studentId) {
+        setError("Student ID is required.");
         return;
       }
     }
@@ -79,7 +87,7 @@ export default function LoginPage() {
           <div className="mt-8 grid gap-3 text-sm">
             {[
               "Teacher and student accounts",
-              "One-minute QR attendance sessions",
+              "Configurable QR attendance sessions",
               "Student camera scanning",
               "MongoDB-backed classes and records",
             ].map((item) => (
@@ -113,8 +121,8 @@ export default function LoginPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {["teacher", "student"].map((item) => (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {["teacher", "student", "admin"].map((item) => (
               <button
                 key={item}
                 onClick={() => {
@@ -154,7 +162,7 @@ export default function LoginPage() {
               type="password"
               value={form.password}
               onChange={(value) => update("password", value)}
-              placeholder="Minimum 6 characters"
+              placeholder="Strong password"
             />
 
             {mode === "register" && role === "teacher" && (
@@ -174,12 +182,23 @@ export default function LoginPage() {
                   onChange={(value) => update("studentId", value)}
                   placeholder="S-1021"
                 />
-                <TextField
-                  label="Class"
-                  value={form.studentClass}
-                  onChange={(value) => update("studentClass", value)}
-                  placeholder="Grade 10 - A"
+                <SelectField
+                  label="Assigned class"
+                  value={form.classId}
+                  onChange={(value) => {
+                    update("classId", value);
+                    update("studentClass", enrollmentClasses.find((cls) => cls.id === value)?.name ?? "");
+                  }}
+                  options={enrollmentClasses}
                 />
+                <div className="sm:col-span-2">
+                  <TextField
+                    label="Class code"
+                    value={form.classCode}
+                    onChange={(value) => update("classCode", value)}
+                    placeholder="Use a teacher-provided code if class is not listed"
+                  />
+                </div>
               </div>
             )}
 
@@ -199,6 +218,28 @@ export default function LoginPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <label className="block">
+      <span className="block text-xs text-slate-500 uppercase tracking-wider mb-1.5 font-semibold">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full bg-slate-950 border border-slate-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:border-sky-500 transition-all"
+      >
+        <option value="">Select class</option>
+        {options.map((cls) => (
+          <option key={cls.id} value={cls.id}>
+            {cls.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

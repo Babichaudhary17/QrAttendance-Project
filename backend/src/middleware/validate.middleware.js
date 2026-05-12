@@ -13,8 +13,10 @@ export const validate = (validations) => {
     }
 
     res.status(400);
-    const extractedErrors = errors.array().map(err => `${err.path}: ${err.msg}`).join(', ');
+    const extractedErrors = errors.array().map((err) => `${err.path}: ${err.msg}`).join(", ");
 
-    next(new Error(`Validation failed - ${extractedErrors}`));
+    const error = new Error(`Validation failed - ${extractedErrors}`);
+    error.statusCode = 400;
+    next(error);
   };
 };

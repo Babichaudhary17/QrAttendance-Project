@@ -1,5 +1,9 @@
 import User from "../models/User.model.js";
+import Class from "../models/Class.model.js";
+import asyncHandler from "../utils/asyncHandler.js";
 import generateToken from "../utils/generateToken.js";
+import { toClassDto } from "../utils/formatters.js";
+import { runInTransaction } from "../utils/transactions.js";
 
 const buildAuthResponse = (user) => ({
   user: {
@@ -15,14 +19,19 @@ const buildAuthResponse = (user) => ({
       .toUpperCase(),
     teacherId: user.teacherId,
     studentId: user.studentId,
-    class: user.studentClass,
+    classId: user.class ? String(user.class?._id ?? user.class) : undefined,
+    class: user.class?.name ?? user.studentClass,
+    assignedClass:
+      user.class && typeof user.class === "object" && user.class.name
+        ? toClassDto(user.class)
+        : undefined,
+    forcePasswordReset: user.forcePasswordReset,
   },
   token: generateToken(user),
 });
 
-export const registerUser = async (req, res, next) => {
-  try {
-    const { name, email, password, role, teacherId, studentId, studentClass } =
+export const registerUser = asyncHandler(async (req, res) => {
+    const { name, email, password, role, teacherId, studentId, classId, classCode } =
       req.body;
 
     if (!name || !email || !password || !role) {
@@ -35,14 +44,23 @@ export const registerUser = async (req, res, next) => {
       throw new Error("Role must be admin, teacher or student.");
     }
 
+    if (
+      role === "admin" &&
+      (!process.env.ADMIN_REGISTRATION_TOKEN ||
+        req.body.adminRegistrationToken !== process.env.ADMIN_REGISTRATION_TOKEN)
+    ) {
+      res.status(403);
+      throw new Error("Admin registration is disabled.");
+    }
+
     if (role === "teacher" && !teacherId) {
       res.status(400);
       throw new Error("Teacher ID is required.");
     }
 
-    if (role === "student" && (!studentId || !studentClass)) {
+    if (role === "student" && !studentId) {
       res.status(400);
-      throw new Error("Student ID and class are required.");
+      throw new Error("Student ID is required.");
     }
 
     const existingUser = await User.findOne({ email });
@@ -52,40 +70,72 @@ export const registerUser = async (req, res, next) => {
       throw new Error("A user with this email already exists.");
     }
 
-    const duplicateProfile = await User.findOne({
-      $or: [
-        ...(teacherId ? [{ teacherId }] : []),
-        ...(studentId ? [{ studentId }] : []),
-      ],
-    });
+    const profileChecks = [
+      ...(teacherId ? [{ teacherId }] : []),
+      ...(studentId ? [{ studentId }] : []),
+    ];
+    const duplicateProfile = profileChecks.length
+      ? await User.findOne({ $or: profileChecks })
+      : null;
 
     if (duplicateProfile) {
       res.status(409);
       throw new Error("This teacher or student ID is already registered.");
     }
 
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role,
-      teacherId: role === "teacher" ? teacherId : undefined,
-      studentId: role === "student" ? studentId : undefined,
-      studentClass: role === "student" ? studentClass : undefined,
+    const user = await runInTransaction(async (session) => {
+      let assignedClass = null;
+
+      if (role === "student" && (classId || classCode)) {
+        const classQuery = classId
+          ? { _id: classId }
+          : { classCode: classCode.trim() };
+
+        assignedClass = await Class.findOne({ ...classQuery, isActive: true }).session(session);
+
+        if (!assignedClass) {
+          res.status(400);
+          throw new Error("Selected class was not found or is inactive.");
+        }
+      }
+
+      const [createdUser] = await User.create(
+        [
+          {
+            name,
+            email,
+            password,
+            role,
+            teacherId: role === "teacher" ? teacherId : undefined,
+            studentId: role === "student" ? studentId : undefined,
+            class: role === "student" ? assignedClass._id : undefined,
+            studentClass: role === "student" ? assignedClass.name : undefined,
+          },
+        ],
+        { session }
+      );
+
+      if (assignedClass) {
+        await Class.updateOne(
+          { _id: assignedClass._id, isActive: true },
+          { $addToSet: { students: createdUser._id } },
+          { session }
+        );
+      }
+
+      return createdUser;
     });
+
+    await user.populate("class", "name subject teacher students classCode inviteLink isActive");
 
     res.status(201).json({
       success: true,
       message: "User registered successfully.",
       data: buildAuthResponse(user),
     });
-  } catch (error) {
-    next(error);
-  }
-};
+});
 
-export const loginUser = async (req, res, next) => {
-  try {
+export const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -93,7 +143,9 @@ export const loginUser = async (req, res, next) => {
       throw new Error("Email and password are required.");
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    const user = await User.findOne({ email })
+      .select("+password")
+      .populate("class", "name subject teacher students classCode inviteLink isActive");
 
     if (!user || !(await user.matchPassword(password))) {
       res.status(401);
@@ -102,19 +154,37 @@ export const loginUser = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: "Login successful.",
+      message: user.forcePasswordReset
+        ? "Login successful. Password reset is required."
+        : "Login successful.",
       data: buildAuthResponse(user),
     });
-  } catch (error) {
-    next(error);
-  }
-};
+});
 
-export const getMe = async (req, res) => {
+export const getMe = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
       user: req.user,
     },
   });
-};
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const user = await User.findById(req.user._id).select("+password");
+
+  if (!user || !(await user.matchPassword(currentPassword))) {
+    res.status(401);
+    throw new Error("Current password is incorrect.");
+  }
+
+  user.password = newPassword;
+  user.forcePasswordReset = false;
+  await user.save();
+
+  res.json({
+    success: true,
+    message: "Password changed successfully.",
+  });
+});

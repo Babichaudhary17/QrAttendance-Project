@@ -1,10 +1,11 @@
 import Attendance from "../models/Attendance.model.js";
 import Class from "../models/Class.model.js";
 import QrSession from "../models/QrSession.model.js";
+import { canManageClass } from "../middleware/auth.middleware.js";
+import asyncHandler from "../utils/asyncHandler.js";
 import { toAttendanceDto } from "../utils/formatters.js";
 
-export const getAttendance = async (req, res, next) => {
-  try {
+export const getAttendance = asyncHandler(async (req, res) => {
     const query = {};
 
     if (req.user.role === "student") {
@@ -12,6 +13,17 @@ export const getAttendance = async (req, res, next) => {
     }
 
     if (req.query.classId) {
+      if (req.user.role === "student") {
+        const enrolledClass = await Class.exists({
+          _id: req.query.classId,
+          students: req.user._id,
+        });
+
+        if (!enrolledClass) {
+          res.status(403);
+          throw new Error("You can only view attendance for joined classes.");
+        }
+      }
       query.class = req.query.classId;
     }
 
@@ -23,9 +35,16 @@ export const getAttendance = async (req, res, next) => {
 
     if (req.user.role === "teacher") {
       const teacherClasses = await Class.find({ teacher: req.user._id }).select("_id");
+      const ownedClassIds = teacherClasses.map((classDoc) => String(classDoc._id));
+
+      if (req.query.classId && !ownedClassIds.includes(String(req.query.classId))) {
+        res.status(403);
+        throw new Error("You do not have permission to view this class attendance.");
+      }
+
       query.class = req.query.classId
         ? req.query.classId
-        : { $in: teacherClasses.map((classDoc) => classDoc._id) };
+        : { $in: ownedClassIds };
     }
 
     const records = await Attendance.find(query)
@@ -37,13 +56,9 @@ export const getAttendance = async (req, res, next) => {
       success: true,
       data: { records: records.map(toAttendanceDto) },
     });
-  } catch (error) {
-    next(error);
-  }
-};
+});
 
-export const markAttendance = async (req, res, next) => {
-  try {
+export const markAttendance = asyncHandler(async (req, res) => {
     const { classId, sessionId, token } = req.body;
 
     if (!classId || !sessionId || !token) {
@@ -56,32 +71,44 @@ export const markAttendance = async (req, res, next) => {
       class: classId,
       token,
       isActive: true,
+      expiresAt: { $gt: new Date() },
     });
 
     if (!session) {
-      res.status(404);
-      throw new Error("Attendance session was not found or is no longer active.");
-    }
-
-    if (session.expiresAt.getTime() < Date.now()) {
-      session.isActive = false;
-      await session.save();
+      await QrSession.updateOne({ _id: sessionId, expiresAt: { $lte: new Date() } }, { isActive: false });
       res.status(410);
-      throw new Error("This QR code has expired.");
+      throw new Error("Attendance session was not found, is expired, or is no longer active.");
     }
 
-    const classDoc = await Class.findById(classId);
+    const classDoc = await Class.findOne({ _id: classId, isActive: true }).select("students");
 
     if (!classDoc?.students.some((id) => String(id) === String(req.user._id))) {
       res.status(403);
       throw new Error("You are not enrolled in this class.");
     }
 
-    const record = await Attendance.create({
+    const result = await Attendance.updateOne(
+      { student: req.user._id, qrSession: session._id },
+      {
+        $setOnInsert: {
+          student: req.user._id,
+          class: classId,
+          qrSession: session._id,
+          status: "present",
+          markedAt: new Date(),
+        },
+      },
+      { upsert: true }
+    );
+
+    if (result.upsertedCount === 0) {
+      res.status(409);
+      throw new Error("Attendance has already been marked for this session.");
+    }
+
+    const record = await Attendance.findOne({
       student: req.user._id,
-      class: classId,
-      qrSession: sessionId,
-      status: "present",
+      qrSession: session._id,
     });
 
     await record.populate("student", "name studentId");
@@ -92,18 +119,9 @@ export const markAttendance = async (req, res, next) => {
       message: "Attendance marked successfully.",
       data: { record: toAttendanceDto(record) },
     });
-  } catch (error) {
-    if (error.code === 11000) {
-      res.status(409);
-      return next(new Error("Attendance has already been marked for this session."));
-    }
+});
 
-    next(error);
-  }
-};
-
-export const getAnalytics = async (req, res, next) => {
-  try {
+export const getAnalytics = asyncHandler(async (req, res) => {
     const query = {};
 
     if (req.user.role === "student") {
@@ -134,13 +152,9 @@ export const getAnalytics = async (req, res, next) => {
         }))
       }
     });
-  } catch (error) {
-    next(error);
-  }
-};
+});
 
-export const getReport = async (req, res, next) => {
-  try {
+export const getReport = asyncHandler(async (req, res) => {
     const classId = req.params.classId;
     
     const classDoc = await Class.findById(classId).populate("students", "name email studentId");
@@ -150,7 +164,7 @@ export const getReport = async (req, res, next) => {
       throw new Error("Class not found.");
     }
 
-    if (req.user.role === "teacher" && String(classDoc.teacher) !== String(req.user._id) && req.user.role !== "admin") {
+    if (!canManageClass(req.user, classDoc)) {
       res.status(403);
       throw new Error("Not authorized to view this class report.");
     }
@@ -189,8 +203,4 @@ export const getReport = async (req, res, next) => {
         }
       }
     });
-
-  } catch (error) {
-    next(error);
-  }
-};
+});

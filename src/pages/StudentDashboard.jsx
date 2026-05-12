@@ -29,8 +29,10 @@ const HEADERS = {
 };
 
 export default function StudentDashboard() {
-  const { currentUser, attendanceRecords } = useAuth();
+  const { classes, currentUser, attendanceRecords, joinClass, refreshWorkspace } = useAuth();
   const [activeTab, setActiveTab] = useState("scan");
+  const [classCode, setClassCode] = useState("");
+  const [joinStatus, setJoinStatus] = useState({ type: "", message: "" });
 
   const myRecords = attendanceRecords.filter(
     (record) => record.studentId === currentUser.studentId
@@ -41,6 +43,27 @@ export default function StudentDashboard() {
   const rate = myRecords.length
     ? Math.round((presentCount / myRecords.length) * 100)
     : 0;
+  const assignedClass = currentUser.assignedClass ?? classes[0] ?? null;
+
+  const handleManualJoin = async (event) => {
+    event.preventDefault();
+    setJoinStatus({ type: "", message: "" });
+
+    if (!classCode.trim()) {
+      setJoinStatus({ type: "error", message: "Enter a class code first." });
+      return;
+    }
+
+    const result = await joinClass(classCode);
+    if (!result.success) {
+      setJoinStatus({ type: "error", message: result.error });
+      return;
+    }
+
+    setClassCode("");
+    await refreshWorkspace();
+    setJoinStatus({ type: "success", message: `Joined ${result.class.name} successfully.` });
+  };
 
   return (
     <div
@@ -69,8 +92,8 @@ export default function StudentDashboard() {
             color="bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
           />
           <StatCard
-            label="Total Recorded"
-            value={myRecords.length}
+            label="My Class"
+            value={assignedClass?.name ?? currentUser.class ?? "Not assigned"}
             icon="list"
             color="bg-slate-800/60 border-slate-700 text-white"
           />
@@ -81,6 +104,35 @@ export default function StudentDashboard() {
             color="bg-sky-500/10 border-sky-500/20 text-sky-400"
           />
         </div>
+
+        <form
+          onSubmit={handleManualJoin}
+          className="mb-7 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 grid gap-3 md:grid-cols-[1fr_auto]"
+        >
+          <input
+            value={classCode}
+            onChange={(event) => {
+              setClassCode(event.target.value);
+              setJoinStatus({ type: "", message: "" });
+            }}
+            placeholder="Paste class code"
+            className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
+          />
+          <button className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-black text-white hover:bg-emerald-400 transition-colors">
+            Join Class
+          </button>
+          {joinStatus.message && (
+            <div
+              className={`md:col-span-2 rounded-xl border px-4 py-3 text-sm ${
+                joinStatus.type === "success"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-red-500/30 bg-red-500/10 text-red-300"
+              }`}
+            >
+              {joinStatus.message}
+            </div>
+          )}
+        </form>
 
         {activeTab === "scan" && <ScanQR />}
         {activeTab === "history" && <AttendanceHistory records={myRecords} />}

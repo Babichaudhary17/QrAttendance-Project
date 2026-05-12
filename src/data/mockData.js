@@ -3,21 +3,18 @@ const USER_BASE = [
     id: "U-001",
     name: "Mr. Raj Kumar",
     email: "teacher@school.edu",
-    password: "teach123",
     role: "teacher",
   },
   {
     id: "U-002",
     name: "Admin User",
     email: "admin@school.edu",
-    password: "admin123",
     role: "admin",
   },
   {
     id: "U-003",
     name: "Arjun Kumar",
     email: "student@school.edu",
-    password: "stud123",
     role: "student",
   },
 ];

@@ -1,38 +1,52 @@
 import User from "../models/User.model.js";
 import Class from "../models/Class.model.js";
 import Attendance from "../models/Attendance.model.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import { deleteUserWithCleanup } from "../services/user.service.js";
 
-export const getAllUsers = async (req, res, next) => {
-  try {
-    const users = await User.find({}).select("-password");
-    res.json({ success: true, data: { users } });
-  } catch (error) {
-    next(error);
-  }
-};
+const toUserDto = (user) => ({
+  id: String(user._id),
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  teacherId: user.teacherId,
+  studentId: user.studentId,
+  classId: user.class ? String(user.class?._id ?? user.class) : undefined,
+  class: user.class?.name ?? user.studentClass,
+  assignedClass:
+    user.class && typeof user.class === "object" && user.class.name
+      ? {
+          id: String(user.class._id),
+          name: user.class.name,
+          subject: user.class.subject,
+        }
+      : undefined,
+  forcePasswordReset: user.forcePasswordReset,
+  avatar: user.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase(),
+});
 
-export const deleteUser = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.params.id);
+export const getAllUsers = asyncHandler(async (req, res) => {
+    const users = await User.find({}).select("-password").populate("class", "name subject");
+    res.json({ success: true, data: { users: users.map(toUserDto) } });
+});
+
+export const deleteUser = asyncHandler(async (req, res) => {
+    const user = await deleteUserWithCleanup(req.params.id);
     if (!user) {
       res.status(404);
       throw new Error("User not found");
     }
-    
-    if (user.role === "admin") {
-      res.status(400);
-      throw new Error("Cannot delete an admin user");
-    }
 
-    await User.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: "User deleted successfully" });
-  } catch (error) {
-    next(error);
-  }
-};
+});
 
-export const getDashboardStats = async (req, res, next) => {
-  try {
+export const getDashboardStats = asyncHandler(async (req, res) => {
     const totalUsers = await User.countDocuments();
     const totalClasses = await Class.countDocuments();
     const totalAttendance = await Attendance.countDocuments();
@@ -59,7 +73,4 @@ export const getDashboardStats = async (req, res, next) => {
         recentAttendance
       }
     });
-  } catch (error) {
-    next(error);
-  }
-};
+});

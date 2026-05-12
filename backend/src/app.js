@@ -3,22 +3,20 @@ import cors from "cors";
 import helmet from "helmet";
 import apiRoutes from "./routes/index.js";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
+import {
+  corsOptions,
+  helmetOptions,
+  sanitizeRequest,
+} from "./middleware/security.middleware.js";
 
 const app = express();
 
-app.use(helmet());
-
-app.use(
-  cors({
-    origin: [
-      process.env.CLIENT_URL || "http://localhost:5173",
-      "http://127.0.0.1:5173"
-    ],
-    credentials: true,
-  })
-);
-app.use(express.json());
+app.disable("x-powered-by");
+app.use(helmet(helmetOptions));
+app.use(cors(corsOptions));
+app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(sanitizeRequest);
 
 app.use("/api", apiRoutes);
 

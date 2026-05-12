@@ -5,7 +5,6 @@ import classRoutes from "./class.routes.js";
 import healthRoutes from "./health.routes.js";
 import sessionRoutes from "./session.routes.js";
 import adminRoutes from "./admin.routes.js";
-import qrRoutes from "./qr.routes.js";
 
 const router = Router();
 
@@ -15,6 +14,5 @@ router.use("/classes", classRoutes);
 router.use("/sessions", sessionRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/admin", adminRoutes);
-router.use("/qr", qrRoutes);
 
 export default router;

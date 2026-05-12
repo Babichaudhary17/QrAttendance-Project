@@ -5,11 +5,12 @@ export default function Profile({ records }) {
 
   const presentCount = records.filter(r => r.status === "present").length;
   const rate = records.length ? Math.round((presentCount / records.length) * 100) : 0;
+  const className = currentUser.assignedClass?.name ?? currentUser.class ?? "Not assigned";
 
   const details = [
     ["Student ID",      currentUser.studentId || "STU-001"],
     ["Email Address",   currentUser.email],
-    ["Class",           currentUser.class],
+    ["Class",           className],
     ["Days Present",    `${presentCount} / ${records.length}`],
     ["Attendance Rate", `${rate}%`],
   ];
@@ -26,7 +27,7 @@ export default function Profile({ records }) {
           <div>
             <h2 className="text-white font-black text-xl">{currentUser.name}</h2>
             <p className="text-emerald-400 font-semibold text-sm mt-1">Student</p>
-            <p className="text-slate-500 text-xs">{currentUser.class}</p>
+            <p className="text-slate-500 text-xs">{className}</p>
           </div>
         </div>
 

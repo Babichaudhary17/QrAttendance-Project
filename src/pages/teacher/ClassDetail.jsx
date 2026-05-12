@@ -341,6 +341,11 @@ export default function ClassDetail({ cls, records, onBack, onAddStudent }) {
           <p style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
             {students.length} students
           </p>
+          {cls.classCode && (
+            <p style={{ fontSize: "11px", color: "#38bdf8", marginTop: "3px", fontFamily: "monospace" }}>
+              Class code: {cls.classCode}
+            </p>
+          )}
           {activeDate && (
             <p style={{ fontSize: "11px", color: "#475569", marginTop: "3px" }}>
               Status shown for {activeDate}

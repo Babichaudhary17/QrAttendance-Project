@@ -17,6 +17,8 @@ export default function ScanQR() {
   const [error, setError] = useState("");
 
   const scannerRef = useRef(null);
+  const joinedClassIds = new Set(classes.map((cls) => cls.id));
+  const assignedClasses = classes;
 
   useEffect(() => {
     return () => {
@@ -39,7 +41,7 @@ export default function ScanQR() {
       return;
     }
 
-    if (!classes.some((cls) => cls.id === classId)) {
+    if (!joinedClassIds.has(classId)) {
       setError("You are not enrolled in the class for this QR code.");
       return;
     }
@@ -120,7 +122,7 @@ export default function ScanQR() {
     setError("");
     setScanResult(null);
 
-    const classId = classes.find((cls) => activeQrSessions[cls.id])?.id;
+    const classId = classes.find((cls) => activeQrSessions[cls.id])?.id ?? null;
     const payload = classId ? activeQrSessions[classId] : null;
 
     if (!payload) {
@@ -156,7 +158,7 @@ export default function ScanQR() {
           {currentUser.studentId}
         </p>
         <div className="mt-5 w-full space-y-2">
-          {classes.map((cls) => (
+          {assignedClasses.map((cls) => (
             <div
               key={cls.id}
               className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-300"
@@ -164,9 +166,9 @@ export default function ScanQR() {
               {cls.name}
             </div>
           ))}
-          {classes.length === 0 && (
+          {assignedClasses.length === 0 && (
             <p className="text-slate-500 text-sm text-center">
-              No enrolled classes yet.
+              No assigned class was found.
             </p>
           )}
         </div>

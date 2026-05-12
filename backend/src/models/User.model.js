@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import { env } from "../config/env.js";
 
 const userSchema = new mongoose.Schema(
   {
@@ -18,8 +19,14 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
-      minlength: 6,
       select: false,
+    },
+    forcePasswordReset: {
+      type: Boolean,
+      default: false,
+    },
+    passwordChangedAt: {
+      type: Date,
     },
     role: {
       type: String,
@@ -38,6 +45,10 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
+    class: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Class",
+    },
     studentClass: {
       type: String,
       trim: true,
@@ -51,8 +62,9 @@ userSchema.pre("save", async function hashPassword() {
     return;
   }
 
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(env.bcryptRounds);
   this.password = await bcrypt.hash(this.password, salt);
+  this.passwordChangedAt = new Date();
 });
 
 userSchema.methods.matchPassword = function matchPassword(enteredPassword) {

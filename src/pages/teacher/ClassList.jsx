@@ -13,6 +13,7 @@ function ClassCard({ cls, index, onSelect, onDelete }) {
   const [hovered,       setHovered]       = useState(false);
   const [deleteHovered, setDeleteHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [copied, setCopied] = useState("");
   const color    = CLASS_COLORS[index % CLASS_COLORS.length];
   const initials = cls.name.replace("Grade ", "G").replace(" – ", "").replace(" - ", "");
 
@@ -25,6 +26,14 @@ function ClassCard({ cls, index, onSelect, onDelete }) {
   const handleCancelDelete = (e) => {
     e.stopPropagation();
     setConfirmDelete(false);
+  };
+
+  const copyValue = async (event, value, label) => {
+    event.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(label);
+    setTimeout(() => setCopied(""), 1600);
   };
 
   return (
@@ -96,12 +105,33 @@ function ClassCard({ cls, index, onSelect, onDelete }) {
         }}>
           {cls.name}
         </div>
+        <div style={{ fontSize: "12px", color: "#94a3b8", minHeight: "18px" }}>
+          {cls.subject || "No subject"}
+        </div>
 
         <div style={{
           height: "1px",
           background: hovered ? `${color.border}33` : "rgba(51,65,85,0.4)",
           margin: "10px 0", transition: "background 0.25s",
         }} />
+
+        <div style={{ display: "grid", gap: "8px", marginBottom: "12px" }}>
+          <InviteRow
+            label="Code"
+            value={cls.classCode}
+            onCopy={(event) => copyValue(event, cls.classCode, "code")}
+          />
+          <InviteRow
+            label="Link"
+            value={cls.inviteLink}
+            onCopy={(event) => copyValue(event, cls.inviteLink, "link")}
+          />
+          {copied && (
+            <span style={{ fontSize: "11px", color: "#34d399", fontWeight: 600 }}>
+              Copied {copied}
+            </span>
+          )}
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto" }}>
           <div style={{ display: "flex" }}>
@@ -185,15 +215,63 @@ function ClassCard({ cls, index, onSelect, onDelete }) {
   );
 }
 
+function InviteRow({ label, value, onCopy }) {
+  return (
+    <div
+      onClick={(event) => event.stopPropagation()}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "38px 1fr auto",
+        alignItems: "center",
+        gap: "8px",
+        border: "1px solid rgba(51,65,85,0.65)",
+        background: "rgba(15,23,42,0.7)",
+        borderRadius: "8px",
+        padding: "7px 8px",
+      }}
+    >
+      <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+        {label}
+      </span>
+      <span style={{ fontSize: "11px", color: "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace" }}>
+        {value || "Generating..."}
+      </span>
+      <button
+        onClick={onCopy}
+        disabled={!value}
+        style={{
+          width: "26px",
+          height: "26px",
+          borderRadius: "7px",
+          border: "1px solid rgba(59,130,246,0.35)",
+          background: "rgba(59,130,246,0.12)",
+          color: "#93c5fd",
+          cursor: value ? "pointer" : "not-allowed",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+        title={`Copy ${label.toLowerCase()}`}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M4 4V2.5A1.5 1.5 0 0 1 5.5 1h3A1.5 1.5 0 0 1 10 2.5v3A1.5 1.5 0 0 1 8.5 7H7" />
+          <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h3A1.5 1.5 0 0 1 8 5.5v3A1.5 1.5 0 0 1 6.5 10h-3A1.5 1.5 0 0 1 2 8.5z" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function AddClassForm({ onAdd, onCancel }) {
   const [name,  setName]  = useState("");
+  const [subject, setSubject] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError("Class name is required."); return; }
     const id = name.trim().replace(/\s+/g, "").replace(/[^a-zA-Z0-9]/g, "") + Date.now();
-    await onAdd({ id, name: name.trim(), students: [] });
-    setName(""); setError("");
+    await onAdd({ id, name: name.trim(), subject: subject.trim(), students: [] });
+    setName(""); setSubject(""); setError("");
   };
 
   return (
@@ -228,6 +306,29 @@ function AddClassForm({ onAdd, onCancel }) {
         onChange={e => { setName(e.target.value); setError(""); }}
         placeholder="e.g. Grade 11 – A"
         autoFocus
+        onKeyDown={e => e.key === "Enter" && handleSubmit()}
+        style={{
+          width: "100%", background: "#0f172a",
+          border: "1px solid #334155", borderRadius: "8px",
+          padding: "10px 12px", fontSize: "13px", color: "#f1f5f9",
+          outline: "none", boxSizing: "border-box", marginBottom: "10px",
+        }}
+        onFocus={e => e.target.style.borderColor = "#3b82f6"}
+        onBlur={e => e.target.style.borderColor = "#334155"}
+      />
+
+      <label style={{
+        fontSize: "11px", fontWeight: 600, color: "#64748b",
+        textTransform: "uppercase", letterSpacing: "0.05em",
+        display: "block", marginBottom: "6px",
+      }}>
+        Subject
+      </label>
+      <input
+        type="text"
+        value={subject}
+        onChange={e => setSubject(e.target.value)}
+        placeholder="e.g. Mathematics"
         onKeyDown={e => e.key === "Enter" && handleSubmit()}
         style={{
           width: "100%", background: "#0f172a",
@@ -315,7 +416,7 @@ export default function ClassList({ classes, onSelect, onAddClass, onDeleteClass
 
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
         gap: "16px",
       }}>
         {classes.map((cls, i) => (

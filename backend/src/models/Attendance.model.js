@@ -31,6 +31,8 @@ const attendanceSchema = new mongoose.Schema(
 );
 
 attendanceSchema.index({ student: 1, qrSession: 1 }, { unique: true });
+attendanceSchema.index({ class: 1, markedAt: -1 });
+attendanceSchema.index({ student: 1, markedAt: -1 });
 
 const Attendance = mongoose.model("Attendance", attendanceSchema);
 

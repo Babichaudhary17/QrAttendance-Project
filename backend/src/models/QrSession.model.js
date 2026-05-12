@@ -29,6 +29,9 @@ const qrSessionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+qrSessionSchema.index({ class: 1, teacher: 1, isActive: 1, expiresAt: -1 });
+qrSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 86400 });
+
 const QrSession = mongoose.model("QrSession", qrSessionSchema);
 
 export default QrSession;

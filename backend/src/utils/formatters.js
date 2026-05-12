@@ -30,6 +30,9 @@ export const toClassDto = (classDoc) => ({
   name: classDoc.name,
   subject: classDoc.subject,
   teacher: classDoc.teacher,
+  classCode: classDoc.classCode,
+  inviteLink: classDoc.inviteLink,
+  isActive: classDoc.isActive,
   students: (classDoc.students ?? []).map((student) =>
     typeof student === "object" && student.name
       ? {
@@ -40,6 +43,12 @@ export const toClassDto = (classDoc) => ({
         }
       : student
   ),
+});
+
+export const toEnrollmentClassDto = (classDoc) => ({
+  id: String(classDoc._id),
+  name: classDoc.name,
+  subject: classDoc.subject,
 });
 
 export const toAttendanceDto = (record) => ({

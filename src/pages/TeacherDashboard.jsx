@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import Sidebar from "../Components/layout/Sidebar";
 import ClassList from "./teacher/ClassList";
@@ -74,20 +74,63 @@ export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState("classes");
   const [selectedClass, setSelectedClass] = useState(null);
   const [toast, setToast] = useState(null);
+  const historyReady = useRef(false);
 
   const showToast = (message) => setToast(message);
+
+  useEffect(() => {
+    if (!historyReady.current) {
+      window.history.replaceState(
+        { ...(window.history.state ?? {}), attendQrTab: "classes" },
+        "",
+        window.location.pathname
+      );
+      historyReady.current = true;
+    }
+
+    const handleBackNavigation = (event) => {
+      const state = event.state ?? {};
+      const nextTab = state.attendQrTab ?? "classes";
+      setActiveTab(nextTab);
+      setSelectedClass(
+        state.attendQrClassId
+          ? classes.find((cls) => cls.id === state.attendQrClassId) ?? null
+          : null
+      );
+    };
+
+    window.addEventListener("popstate", handleBackNavigation);
+    return () => window.removeEventListener("popstate", handleBackNavigation);
+  }, [classes]);
+
+  const pushDashboardState = (tab, classId = null) => {
+    window.history.pushState(
+      { attendQrTab: tab, attendQrClassId: classId },
+      "",
+      window.location.pathname
+    );
+  };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setSelectedClass(null);
+    pushDashboardState(tab);
   };
 
-  const handleSelectClass = (cls) => setSelectedClass(cls);
-  const handleBack = () => setSelectedClass(null);
+  const handleHome = () => handleTabChange("classes");
+  const handleSelectClass = (cls) => {
+    setActiveTab("classes");
+    setSelectedClass(cls);
+    pushDashboardState("classes", cls.id);
+  };
+  const handleBack = () => window.history.back();
 
   const handleAddClass = async (newClass) => {
-    const created = await addClass(newClass);
-    showToast(`"${created.name}" added successfully`);
+    const result = await addClass(newClass);
+    if (result.success) {
+      showToast(`"${result.class.name}" added successfully`);
+    }
+    return result;
   };
 
   const handleDeleteClass = async (classId) => {
@@ -113,6 +156,9 @@ export default function TeacherDashboard() {
         setActiveTab={handleTabChange}
         roleLabel={{ text: "Teacher", color: "text-blue-400" }}
         avatarColor="bg-blue-500/20 text-blue-400"
+        homeTab="classes"
+        onHome={handleHome}
+        onBack={handleBack}
       />
 
       <main className="flex-1 p-7 overflow-y-auto">

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { env } from "../config/env.js";
 
 export const generateTemporaryPassword = () => {
-  return crypto.randomBytes(24).toString("base64url");
+  return crypto.randomBytes(8).toString("hex");
 };
 
 export const hashPassword = (password) => {
@@ -15,5 +15,5 @@ export const passwordDeliveryMessage = (user, temporaryPassword) => {
     return `Temporary password delivery is queued for ${user.email}.`;
   }
 
-  return `Temporary password generated. Deliver it through a trusted out-of-band channel.`;
+  return `Temporary password generated. Deliver it through a trusted out-of-band channel; the student must reset it on first login.`;
 };

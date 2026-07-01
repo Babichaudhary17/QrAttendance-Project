@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../Components/layout/Sidebar";
 import Overview from "./admin/Overview";
 import TeacherView from "./admin/TeacherView";
 import StudentView from "./admin/StudentView";
 import AllUsers from "./admin/AllUsers";
 import AllRecords from "./admin/AllRecords";
+import AdminSettings from "./admin/AdminSettings";
 
 const NAV = [
   { id: "overview", label: "Overview", icon: "home" },
@@ -12,6 +13,7 @@ const NAV = [
   { id: "student", label: "Student View", icon: "camera" },
   { id: "users", label: "All Users", icon: "users" },
   { id: "records", label: "All Records", icon: "list" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 
 const HEADERS = {
@@ -35,10 +37,37 @@ const HEADERS = {
     title: "All Attendance Records",
     subtitle: "Complete attendance log for all students",
   },
+  settings: {
+    title: "Admin Settings",
+    subtitle: "Update the admin login username and password",
+  },
 };
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), attendQrTab: "overview" },
+      "",
+      window.location.pathname
+    );
+
+    const handleBack = (event) => {
+      setActiveTab(event.state?.attendQrTab ?? "overview");
+    };
+
+    window.addEventListener("popstate", handleBack);
+    return () => window.removeEventListener("popstate", handleBack);
+  }, []);
+
+  const navigateToTab = (tab) => {
+    setActiveTab(tab);
+    window.history.pushState({ attendQrTab: tab }, "", window.location.pathname);
+  };
+
+  const goHome = () => navigateToTab("overview");
+  const goBack = () => window.history.back();
 
   return (
     <div
@@ -48,9 +77,12 @@ export default function AdminDashboard() {
       <Sidebar
         navItems={NAV}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={navigateToTab}
         roleLabel={{ text: "Administrator", color: "text-amber-400" }}
         avatarColor="bg-amber-500/20 text-amber-400"
+        homeTab="overview"
+        onHome={goHome}
+        onBack={goBack}
       />
 
       <main className="flex-1 p-7 overflow-y-auto">
@@ -68,11 +100,12 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {activeTab === "overview" && <Overview onNavigate={setActiveTab} />}
+        {activeTab === "overview" && <Overview onNavigate={navigateToTab} />}
         {activeTab === "teacher" && <TeacherView />}
         {activeTab === "student" && <StudentView />}
         {activeTab === "users" && <AllUsers />}
         {activeTab === "records" && <AllRecords />}
+        {activeTab === "settings" && <AdminSettings />}
       </main>
     </div>
   );

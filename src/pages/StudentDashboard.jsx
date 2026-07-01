@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import Sidebar from "../Components/layout/Sidebar";
 import PageHeader from "../Components/layout/PageHeader";
@@ -33,6 +33,29 @@ export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState("scan");
   const [classCode, setClassCode] = useState("");
   const [joinStatus, setJoinStatus] = useState({ type: "", message: "" });
+
+  useEffect(() => {
+    window.history.replaceState(
+      { ...(window.history.state ?? {}), attendQrTab: "scan" },
+      "",
+      window.location.pathname
+    );
+
+    const handleBack = (event) => {
+      setActiveTab(event.state?.attendQrTab ?? "scan");
+    };
+
+    window.addEventListener("popstate", handleBack);
+    return () => window.removeEventListener("popstate", handleBack);
+  }, []);
+
+  const navigateToTab = (tab) => {
+    setActiveTab(tab);
+    window.history.pushState({ attendQrTab: tab }, "", window.location.pathname);
+  };
+
+  const goHome = () => navigateToTab("scan");
+  const goBack = () => window.history.back();
 
   const myRecords = attendanceRecords.filter(
     (record) => record.studentId === currentUser.studentId
@@ -73,9 +96,12 @@ export default function StudentDashboard() {
       <Sidebar
         navItems={NAV}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={navigateToTab}
         roleLabel={{ text: "Student", color: "text-emerald-400" }}
         avatarColor="bg-emerald-500/20 text-emerald-400"
+        homeTab="scan"
+        onHome={goHome}
+        onBack={goBack}
       />
 
       <main className="flex-1 p-7 overflow-y-auto">

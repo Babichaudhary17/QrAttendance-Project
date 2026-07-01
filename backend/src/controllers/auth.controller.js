@@ -39,18 +39,9 @@ export const registerUser = asyncHandler(async (req, res) => {
       throw new Error("Name, email, password, and role are required.");
     }
 
-    if (!["admin", "teacher", "student"].includes(role)) {
+    if (!["teacher", "student"].includes(role)) {
       res.status(400);
-      throw new Error("Role must be admin, teacher or student.");
-    }
-
-    if (
-      role === "admin" &&
-      (!process.env.ADMIN_REGISTRATION_TOKEN ||
-        req.body.adminRegistrationToken !== process.env.ADMIN_REGISTRATION_TOKEN)
-    ) {
-      res.status(403);
-      throw new Error("Admin registration is disabled.");
+      throw new Error("Public registration is only available for teacher and student accounts.");
     }
 
     if (role === "teacher" && !teacherId) {
@@ -126,7 +117,17 @@ export const registerUser = asyncHandler(async (req, res) => {
       return createdUser;
     });
 
-    await user.populate("class", "name subject teacher students classCode inviteLink isActive");
+    await user.populate([
+      { path: "class", populate: [
+        { path: "subject", select: "name code" },
+        { path: "department", select: "name code" },
+        { path: "program", select: "name code" },
+        { path: "semester", select: "name code number" }
+      ]},
+      { path: "department", select: "name code" },
+      { path: "program", select: "name code" },
+      { path: "semester", select: "name code number" }
+    ]);
 
     res.status(201).json({
       success: true,
@@ -145,7 +146,17 @@ export const loginUser = asyncHandler(async (req, res) => {
 
     const user = await User.findOne({ email })
       .select("+password")
-      .populate("class", "name subject teacher students classCode inviteLink isActive");
+      .populate([
+        { path: "class", populate: [
+          { path: "subject", select: "name code" },
+          { path: "department", select: "name code" },
+          { path: "program", select: "name code" },
+          { path: "semester", select: "name code number" }
+        ]},
+        { path: "department", select: "name code" },
+        { path: "program", select: "name code" },
+        { path: "semester", select: "name code number" }
+      ]);
 
     if (!user || !(await user.matchPassword(password))) {
       res.status(401);
@@ -186,5 +197,44 @@ export const changePassword = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: "Password changed successfully.",
+  });
+});
+
+export const updateAdminCredentials = asyncHandler(async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+
+  if (req.user.role !== "admin") {
+    res.status(403);
+    throw new Error("Only admins can update admin credentials.");
+  }
+
+  const user = await User.findById(req.user._id).select("+password");
+
+  if (!user || !(await user.matchPassword(currentPassword))) {
+    res.status(401);
+    throw new Error("Current password is incorrect.");
+  }
+
+  const nextEmail = email.trim().toLowerCase();
+  const emailOwner = await User.findOne({ email: nextEmail });
+
+  if (emailOwner && String(emailOwner._id) !== String(user._id)) {
+    res.status(409);
+    throw new Error("This email is already used by another account.");
+  }
+
+  user.email = nextEmail;
+
+  if (newPassword) {
+    user.password = newPassword;
+    user.forcePasswordReset = false;
+  }
+
+  await user.save();
+
+  res.json({
+    success: true,
+    message: "Admin credentials updated successfully.",
+    data: buildAuthResponse(user),
   });
 });

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Class from "../models/Class.model.js";
 import User from "../models/User.model.js";
 import { v4 as uuidv4 } from "uuid";
@@ -43,6 +44,10 @@ export const getTeacherClasses = asyncHandler(async (req, res) => {
     const query = req.user.role === "admin" ? {} : { teacher: req.user._id };
     const classes = await Class.find(query)
       .populate("students", "name email studentId")
+      .populate("subject", "name code")
+      .populate("department", "name code")
+      .populate("program", "name code")
+      .populate("semester", "name code number")
       .sort({ createdAt: -1 });
 
     const classesWithInvites = await Promise.all(classes.map(ensureInviteMetadata));
@@ -58,13 +63,17 @@ export const getStudentClasses = asyncHandler(async (req, res) => {
     const classes = await Class.find(query)
       .populate("students", "name email studentId")
       .populate("teacher", "name email")
+      .populate("subject", "name code")
+      .populate("department", "name code")
+      .populate("program", "name code")
+      .populate("semester", "name code number")
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: { classes: classes.map(toClassDto) } });
 });
 
 export const createClass = asyncHandler(async (req, res) => {
-    const { name, subject, isActive } = req.body;
+    const { name, subject, subjectId, department, departmentId, program, programId, semester, semesterId, isActive } = req.body;
 
     if (!name?.trim()) {
       res.status(400);
@@ -84,9 +93,16 @@ export const createClass = asyncHandler(async (req, res) => {
       teacherId = teacher._id;
     }
 
+    const subjectValue = subjectId || subject;
+    const isValidObjectId = subjectValue && mongoose.Types.ObjectId.isValid(subjectValue);
+
     const classDoc = new Class({
       name: name.trim(),
-      subject: subject?.trim(),
+      subject: isValidObjectId ? subjectValue : undefined,
+      subjectName: !isValidObjectId && subjectValue ? String(subjectValue).trim() : undefined,
+      department: departmentId || department,
+      program: programId || program,
+      semester: semesterId || semester,
       isActive: isActive ?? true,
       teacher: teacherId,
     });
@@ -94,7 +110,14 @@ export const createClass = asyncHandler(async (req, res) => {
     await classDoc.validate();
     classDoc.inviteLink = buildInviteLink(classDoc.classCode);
     await classDoc.save();
-    await classDoc.populate("students", "name email studentId");
+    
+    await classDoc.populate([
+      { path: "students", select: "name email studentId" },
+      { path: "subject", select: "name code" },
+      { path: "department", select: "name code" },
+      { path: "program", select: "name code" },
+      { path: "semester", select: "name code number" },
+    ]);
 
     res.status(201).json({
       success: true,
@@ -321,7 +344,11 @@ export const getAllClasses = asyncHandler(async (req, res) => {
 export const getClassById = asyncHandler(async (req, res) => {
     const classDoc = await Class.findById(req.params.id)
       .populate("teacher", "name email")
-      .populate("students", "name email studentId");
+      .populate("students", "name email studentId")
+      .populate("subject", "name code")
+      .populate("department", "name code")
+      .populate("program", "name code")
+      .populate("semester", "name code number");
 
     if (!classDoc) {
       res.status(404);
@@ -337,7 +364,7 @@ export const getClassById = asyncHandler(async (req, res) => {
 });
 
 export const updateClass = asyncHandler(async (req, res) => {
-    const { name, subject, isActive } = req.body;
+    const { name, subject, subjectId, department, departmentId, program, programId, semester, semesterId, isActive } = req.body;
 
     const classDoc = await Class.findById(req.params.id);
 
@@ -346,14 +373,33 @@ export const updateClass = asyncHandler(async (req, res) => {
       throw new Error("Class was not found.");
     }
 
-    classDoc.name = name?.trim() || classDoc.name;
-    classDoc.subject = subject?.trim() || classDoc.subject;
+    if (name) classDoc.name = name.trim();
+    if (subjectId || subject) {
+      const subjectValue = subjectId || subject;
+      if (mongoose.Types.ObjectId.isValid(subjectValue)) {
+        classDoc.subject = subjectValue;
+        classDoc.subjectName = undefined;
+      } else {
+        classDoc.subject = undefined;
+        classDoc.subjectName = String(subjectValue).trim();
+      }
+    }
+    if (departmentId || department) classDoc.department = departmentId || department;
+    if (programId || program) classDoc.program = programId || program;
+    if (semesterId || semester) classDoc.semester = semesterId || semester;
     if (typeof isActive === "boolean") {
       classDoc.isActive = isActive;
     }
 
     await classDoc.save();
-    await classDoc.populate("students", "name email studentId");
+    
+    await classDoc.populate([
+      { path: "students", select: "name email studentId" },
+      { path: "subject", select: "name code" },
+      { path: "department", select: "name code" },
+      { path: "program", select: "name code" },
+      { path: "semester", select: "name code number" },
+    ]);
 
     res.json({
       success: true,

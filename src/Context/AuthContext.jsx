@@ -16,7 +16,7 @@ class ApiError extends Error {
 
 function getStoredAuth() {
   try {
-    return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)) || {};
+    return JSON.parse(sessionStorage.getItem(AUTH_STORAGE_KEY)) || {};
   } catch {
     return {};
   }
@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
   const persistAuth = (nextUser, nextToken) => {
     setCurrentUser(nextUser);
     setToken(nextToken);
-    localStorage.setItem(
+    sessionStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({ user: nextUser, token: nextToken })
     );
@@ -209,7 +209,7 @@ export function AuthProvider({ children }) {
     setAttendanceRecords([]);
     setActiveQrSessions({});
     setAuthNotice("");
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   const changePassword = async (currentPassword, newPassword) => {
@@ -223,6 +223,20 @@ export function AuthProvider({ children }) {
       persistAuth(nextUser, token);
       return { success: true };
     } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateAdminCredentials = async ({ email, currentPassword, newPassword }) => {
+    try {
+      const data = await request("/auth/admin-credentials", {
+        method: "PATCH",
+        body: JSON.stringify({ email, currentPassword, newPassword }),
+      });
+
+      persistAuth(data.user, data.token);
+      return { success: true };
+    } catch (error) {
       if (error.status === 401) {
         logout();
       }
@@ -232,15 +246,19 @@ export function AuthProvider({ children }) {
   };
 
   const addClass = async (newClass) => {
-    const data = await request("/classes", {
-      method: "POST",
-      body: JSON.stringify({
-        name: newClass.name,
-        subject: newClass.subject,
-      }),
-    });
-    setClasses((previous) => [data.class, ...previous]);
-    return data.class;
+    try {
+      const data = await request("/classes", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newClass.name,
+          subject: newClass.subject,
+        }),
+      });
+      setClasses((previous) => [data.class, ...previous]);
+      return { success: true, class: data.class };
+    } catch (error) {
+      return { success: false, error: error.message || "Failed to create class." };
+    }
   };
 
   const getClassInvite = async (classCode) => {
@@ -354,11 +372,11 @@ export function AuthProvider({ children }) {
     });
   };
 
-  const addAttendanceRecord = async ({ classId, sessionId, token: qrToken }) => {
+  const addAttendanceRecord = async ({ token: qrToken }) => {
     try {
       const data = await request("/attendance/mark", {
         method: "POST",
-        body: JSON.stringify({ classId, sessionId, token: qrToken }),
+        body: JSON.stringify({ token: qrToken }),
       });
       setAttendanceRecords((previous) => [data.record, ...previous]);
       return { success: true, record: data.record };
@@ -390,6 +408,7 @@ export function AuthProvider({ children }) {
         fetchEnrollmentClasses,
         logout,
         changePassword,
+        updateAdminCredentials,
         refreshWorkspace,
         addClass,
         getClassInvite,

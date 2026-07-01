@@ -29,24 +29,25 @@ export const createQrSession = asyncHandler(async (req, res) => {
       expiresAt,
     });
 
-    const payload = {
-      classId: String(classDoc._id),
-      teacherId: String(classDoc.teacher),
+    // QR encodes ONLY the opaque session token (no JSON metadata in the image)
+    const qrDataUrl = await QRCode.toDataURL(session.token, {
+      width: 280,
+      margin: 1,
+    });
+
+    // Session metadata is returned to the teacher UI only, never in the QR
+    const sessionData = {
       sessionId: String(session._id),
+      classId: String(classDoc._id),
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       token: session.token,
       ttlSeconds: env.qrExpirySeconds,
     };
 
-    const qrDataUrl = await QRCode.toDataURL(JSON.stringify(payload), {
-      width: 280,
-      margin: 1,
-    });
-
     res.status(201).json({
       success: true,
       message: "QR session created successfully.",
-      data: { session: payload, qrDataUrl },
+      data: { session: sessionData, qrDataUrl },
     });
 });

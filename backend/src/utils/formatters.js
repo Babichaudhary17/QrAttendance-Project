@@ -28,7 +28,21 @@ export const toClassDto = (classDoc) => ({
   id: String(classDoc._id),
   _id: classDoc._id,
   name: classDoc.name,
-  subject: classDoc.subject,
+  subject: classDoc.subject && typeof classDoc.subject === "object" && classDoc.subject.name
+    ? classDoc.subject.name
+    : classDoc.subjectName || classDoc.subject,
+  subjectDetails: classDoc.subject && typeof classDoc.subject === "object"
+    ? { id: String(classDoc.subject._id), name: classDoc.subject.name, code: classDoc.subject.code }
+    : undefined,
+  department: classDoc.department && typeof classDoc.department === "object"
+    ? { id: String(classDoc.department._id), name: classDoc.department.name, code: classDoc.department.code }
+    : classDoc.department,
+  program: classDoc.program && typeof classDoc.program === "object"
+    ? { id: String(classDoc.program._id), name: classDoc.program.name, code: classDoc.program.code }
+    : classDoc.program,
+  semester: classDoc.semester && typeof classDoc.semester === "object"
+    ? { id: String(classDoc.semester._id), name: classDoc.semester.name, code: classDoc.semester.code, number: classDoc.semester.number }
+    : classDoc.semester,
   teacher: classDoc.teacher,
   classCode: classDoc.classCode,
   inviteLink: classDoc.inviteLink,
@@ -48,7 +62,9 @@ export const toClassDto = (classDoc) => ({
 export const toEnrollmentClassDto = (classDoc) => ({
   id: String(classDoc._id),
   name: classDoc.name,
-  subject: classDoc.subject,
+  subject: classDoc.subject && typeof classDoc.subject === "object" && classDoc.subject.name
+    ? classDoc.subject.name
+    : classDoc.subject,
 });
 
 export const toAttendanceDto = (record) => ({

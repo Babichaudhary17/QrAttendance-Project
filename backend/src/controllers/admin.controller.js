@@ -19,9 +19,20 @@ const toUserDto = (user) => ({
       ? {
           id: String(user.class._id),
           name: user.class.name,
-          subject: user.class.subject,
+          subject: user.class.subject && typeof user.class.subject === "object" && user.class.subject.name
+            ? user.class.subject.name
+            : user.class.subject,
         }
       : undefined,
+  department: user.department && typeof user.department === "object"
+    ? { id: String(user.department._id), name: user.department.name, code: user.department.code }
+    : user.department,
+  program: user.program && typeof user.program === "object"
+    ? { id: String(user.program._id), name: user.program.name, code: user.program.code }
+    : user.program,
+  semester: user.semester && typeof user.semester === "object"
+    ? { id: String(user.semester._id), name: user.semester.name, code: user.semester.code, number: user.semester.number }
+    : user.semester,
   forcePasswordReset: user.forcePasswordReset,
   avatar: user.name
     .split(" ")
@@ -32,7 +43,14 @@ const toUserDto = (user) => ({
 });
 
 export const getAllUsers = asyncHandler(async (req, res) => {
-    const users = await User.find({}).select("-password").populate("class", "name subject");
+    const users = await User.find({})
+      .select("-password")
+      .populate([
+        { path: "class", populate: { path: "subject", select: "name code" } },
+        { path: "department", select: "name code" },
+        { path: "program", select: "name code" },
+        { path: "semester", select: "name code number" }
+      ]);
     res.json({ success: true, data: { users: users.map(toUserDto) } });
 });
 

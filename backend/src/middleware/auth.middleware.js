@@ -23,7 +23,17 @@ export const protect = asyncHandler(async (req, res, next) => {
 
   const user = await User.findById(decoded.id)
     .select("-password")
-    .populate("class", "name subject teacher students classCode inviteLink isActive");
+    .populate([
+      { path: "class", populate: [
+        { path: "subject", select: "name code" },
+        { path: "department", select: "name code" },
+        { path: "program", select: "name code" },
+        { path: "semester", select: "name code number" }
+      ]},
+      { path: "department", select: "name code" },
+      { path: "program", select: "name code" },
+      { path: "semester", select: "name code number" }
+    ]);
 
   if (!user) {
     res.status(401);

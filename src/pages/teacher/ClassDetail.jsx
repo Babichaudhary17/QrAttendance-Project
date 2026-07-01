@@ -412,10 +412,7 @@ export default function ClassDetail({ cls, records, onBack, onAddStudent }) {
       </div>
 
       {showQR && (
-        <GenerateQR
-          classId={cls.id}
-          teacherId={currentUser.teacherId ?? currentUser.id}
-        />
+        <GenerateQR classId={cls.id} />
       )}
       {showAddForm && (
         <AddStudentForm

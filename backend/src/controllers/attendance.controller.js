@@ -59,28 +59,25 @@ export const getAttendance = asyncHandler(async (req, res) => {
 });
 
 export const markAttendance = asyncHandler(async (req, res) => {
-    const { classId, sessionId, token } = req.body;
+    const { token } = req.body;
 
-    if (!classId || !sessionId || !token) {
+    if (!token || typeof token !== "string") {
       res.status(400);
-      throw new Error("Class ID, session ID, and token are required.");
+      throw new Error("QR token is required.");
     }
 
     const session = await QrSession.findOne({
-      _id: sessionId,
-      class: classId,
-      token,
+      token: token.trim(),
       isActive: true,
       expiresAt: { $gt: new Date() },
     });
 
     if (!session) {
-      await QrSession.updateOne({ _id: sessionId, expiresAt: { $lte: new Date() } }, { isActive: false });
       res.status(410);
       throw new Error("Attendance session was not found, is expired, or is no longer active.");
     }
 
-    const classDoc = await Class.findOne({ _id: classId, isActive: true }).select("students");
+    const classDoc = await Class.findOne({ _id: session.class, isActive: true }).select("students");
 
     if (!classDoc?.students.some((id) => String(id) === String(req.user._id))) {
       res.status(403);
@@ -92,7 +89,7 @@ export const markAttendance = asyncHandler(async (req, res) => {
       {
         $setOnInsert: {
           student: req.user._id,
-          class: classId,
+          class: session.class,
           qrSession: session._id,
           status: "present",
           markedAt: new Date(),

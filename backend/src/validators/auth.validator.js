@@ -7,7 +7,9 @@ export const registerValidator = [
   body("password")
     .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
     .withMessage("Password must be at least 8 characters and include upper, lower, number, and symbol characters"),
-  body("role").isIn(["admin", "teacher", "student"]).withMessage("Invalid role"),
+  body("role")
+    .isIn(["teacher", "student"])
+    .withMessage("Public registration is only available for teacher and student accounts"),
   body("classId")
     .if(body("role").equals("student"))
     .optional()
@@ -25,6 +27,15 @@ export const loginValidator = [
 export const changePasswordValidator = [
   body("currentPassword").notEmpty().withMessage("Current password is required"),
   body("newPassword")
+    .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
+    .withMessage("New password must be at least 8 characters and include upper, lower, number, and symbol characters"),
+];
+
+export const adminCredentialsValidator = [
+  body("email").isEmail().withMessage("Valid email is required"),
+  body("currentPassword").notEmpty().withMessage("Current password is required"),
+  body("newPassword")
+    .optional({ checkFalsy: true })
     .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
     .withMessage("New password must be at least 8 characters and include upper, lower, number, and symbol characters"),
 ];

@@ -49,9 +49,17 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Class",
     },
-    studentClass: {
-      type: String,
-      trim: true,
+    department: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Department",
+    },
+    program: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Program",
+    },
+    semester: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Semester",
     },
   },
   { timestamps: true }

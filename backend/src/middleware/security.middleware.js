@@ -31,9 +31,40 @@ export const sanitizeRequest = (req, _res, next) => {
   next();
 };
 
+const mutatingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+export const allowedBrowserOrigins = () =>
+  new Set([env.clientUrl, "http://127.0.0.1:5173", "http://localhost:5173"]);
+
+/**
+ * Rejects browser-originated state changes from disallowed sites. JWT auth uses
+ * Authorization (not cookies), so classic CSRF is limited; this still blocks
+ * forged cross-site requests that send a non-simple Origin (defense in depth).
+ * Clients without an Origin header (curl, native apps) are allowed.
+ */
+export const verifyMutatingRequestOrigin = (req, res, next) => {
+  if (!mutatingMethods.has(req.method)) {
+    return next();
+  }
+
+  const origin = req.get("origin");
+  if (!origin) {
+    return next();
+  }
+
+  const allowed = allowedBrowserOrigins();
+  if (origin === "null" || !allowed.has(origin)) {
+    res.status(403);
+    return next(new Error("Request blocked: disallowed origin."));
+  }
+
+  return next();
+};
+
 export const corsOptions = {
+  credentials: false,
   origin(origin, callback) {
-    const allowedOrigins = new Set([env.clientUrl, "http://127.0.0.1:5173", "http://localhost:5173"]);
+    const allowedOrigins = allowedBrowserOrigins();
 
     if (!origin || allowedOrigins.has(origin)) {
       return callback(null, true);
@@ -41,7 +72,6 @@ export const corsOptions = {
 
     return callback(new Error("CORS origin is not allowed."));
   },
-  credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };

@@ -50,7 +50,7 @@ export const env = {
     process.env.AUTH_RATE_LIMIT_WINDOW_MS,
     15 * 60 * 1000
   ),
-  authRateLimitMax: parsePositiveInt("AUTH_RATE_LIMIT_MAX", process.env.AUTH_RATE_LIMIT_MAX, 20),
+  authRateLimitMax: parsePositiveInt("AUTH_RATE_LIMIT_MAX", process.env.AUTH_RATE_LIMIT_MAX, 5),
   adminRateLimitMax: parsePositiveInt("ADMIN_RATE_LIMIT_MAX", process.env.ADMIN_RATE_LIMIT_MAX, 120),
 };
 

@@ -11,8 +11,24 @@ const classSchema = new mongoose.Schema(
       trim: true,
     },
     subject: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Subject",
+    },
+    subjectName: {
       type: String,
       trim: true,
+    },
+    department: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Department",
+    },
+    program: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Program",
+    },
+    semester: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Semester",
     },
     teacher: {
       type: mongoose.Schema.Types.ObjectId,

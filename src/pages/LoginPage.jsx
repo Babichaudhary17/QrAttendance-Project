@@ -21,10 +21,17 @@ export default function LoginPage() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const availableRoles = mode === "register" ? ["teacher", "student"] : ["teacher", "student", "admin"];
 
   useEffect(() => {
     if (mode === "register" && role === "student") {
       fetchEnrollmentClasses?.().catch(() => {});
+    }
+  }, [mode, role]);
+
+  useEffect(() => {
+    if (mode === "register" && role === "admin") {
+      setRole("teacher");
     }
   }, [mode, role]);
 
@@ -122,7 +129,7 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-6">
-            {["teacher", "student", "admin"].map((item) => (
+            {availableRoles.map((item) => (
               <button
                 key={item}
                 onClick={() => {

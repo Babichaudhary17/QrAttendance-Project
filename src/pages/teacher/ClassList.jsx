@@ -263,14 +263,21 @@ function InviteRow({ label, value, onCopy }) {
 }
 
 function AddClassForm({ onAdd, onCancel }) {
-  const [name,  setName]  = useState("");
+  const [name,    setName]    = useState("");
   const [subject, setSubject] = useState("");
-  const [error, setError] = useState("");
+  const [error,   setError]   = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError("Class name is required."); return; }
-    const id = name.trim().replace(/\s+/g, "").replace(/[^a-zA-Z0-9]/g, "") + Date.now();
-    await onAdd({ id, name: name.trim(), subject: subject.trim(), students: [] });
+    setLoading(true);
+    setError("");
+    const result = await onAdd({ name: name.trim(), subject: subject.trim() });
+    setLoading(false);
+    if (result && result.error) {
+      setError(result.error);
+      return;
+    }
     setName(""); setSubject(""); setError("");
   };
 
@@ -343,21 +350,23 @@ function AddClassForm({ onAdd, onCancel }) {
       {error && <p style={{ fontSize: "12px", color: "#f87171", margin: "0 0 10px" }}>{error}</p>}
 
       <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-        <button onClick={onCancel} style={{
+        <button onClick={onCancel} disabled={loading} style={{
           background: "transparent", border: "1px solid #334155", borderRadius: "8px",
-          color: "#94a3b8", fontSize: "12px", fontWeight: 500, padding: "8px 16px", cursor: "pointer",
+          color: "#94a3b8", fontSize: "12px", fontWeight: 500, padding: "8px 16px",
+          cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1,
         }}>
           Cancel
         </button>
-        <button onClick={handleSubmit} style={{
+        <button onClick={handleSubmit} disabled={loading} style={{
           background: "linear-gradient(135deg, #2563eb, #1d4ed8)", border: "none",
           borderRadius: "8px", color: "#fff", fontSize: "12px", fontWeight: 600,
-          padding: "8px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+          padding: "8px 18px", cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.7 : 1, display: "flex", alignItems: "center", gap: "6px",
         }}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M6 1v10M1 6h10" strokeLinecap="round"/>
           </svg>
-          Add Class
+          {loading ? "Adding..." : "Add Class"}
         </button>
       </div>
     </div>
@@ -409,7 +418,11 @@ export default function ClassList({ classes, onSelect, onAddClass, onDeleteClass
 
       {showAddForm && (
         <AddClassForm
-          onAdd={async (cls) => { await onAddClass(cls); setShowAddForm(false); }}
+          onAdd={async (cls) => {
+            const result = await onAddClass(cls);
+            if (result && result.success) setShowAddForm(false);
+            return result;
+          }}
           onCancel={() => setShowAddForm(false)}
         />
       )}

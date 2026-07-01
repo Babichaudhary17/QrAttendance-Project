@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { useAuth } from "../../Context/AuthContext";
 
-export default function GenerateQR({ classId, teacherId }) {
+export default function GenerateQR({ classId }) {
   const { activeQrSessions, startQrSession, stopQrSession } = useAuth();
   const qrRef = useRef(null);
   const payload = activeQrSessions[classId] ?? null;
@@ -25,13 +25,13 @@ export default function GenerateQR({ classId, teacherId }) {
     syncRemaining();
     const timer = setInterval(syncRemaining, 1000);
     return () => clearInterval(timer);
-  }, [classId, payload, startQrSession, teacherId]);
+  }, [classId, payload, startQrSession]);
 
   const beginSession = async () => {
     setError("");
     setConfirmRegenerate(false);
     try {
-      await startQrSession(classId, teacherId);
+      await startQrSession(classId);
     } catch (err) {
       setError(err.message);
     }
@@ -50,7 +50,7 @@ export default function GenerateQR({ classId, teacherId }) {
     }
 
     const link = document.createElement("a");
-    link.download = `qr-session-${payload.sessionId}.png`;
+    link.download = `qr-attendance-${payload.token.slice(0, 8)}.png`;
     link.href = canvas.toDataURL();
     link.click();
   };
@@ -98,7 +98,6 @@ export default function GenerateQR({ classId, teacherId }) {
             {[
               { label: "Session ID", value: payload.sessionId },
               { label: "Class", value: payload.classId },
-              { label: "Teacher", value: payload.teacherId ?? "--" },
               {
                 label: "Expires",
                 value: new Date(payload.expiresAt).toLocaleTimeString([], {
@@ -165,7 +164,7 @@ export default function GenerateQR({ classId, teacherId }) {
           <div className="flex flex-col items-center transition-all duration-500 opacity-100 scale-100">
             <div ref={qrRef} className="bg-white p-4 rounded-2xl mb-5 shadow-2xl">
               <QRCodeCanvas
-                value={JSON.stringify(payload)}
+                value={payload.token}
                 size={160}
                 bgColor="#ffffff"
                 fgColor="#0f172a"

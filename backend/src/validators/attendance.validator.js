@@ -1,17 +1,13 @@
 import { body, query } from "express-validator";
 import mongoose from "mongoose";
 
-const objectId = (field) =>
-  body(field)
-    .notEmpty()
-    .withMessage(`${field} is required`)
-    .custom((value) => mongoose.Types.ObjectId.isValid(value))
-    .withMessage(`${field} must be a valid ObjectId`);
-
 export const markAttendanceValidator = [
-  objectId("classId"),
-  objectId("sessionId"),
-  body("token").trim().notEmpty().withMessage("QR token is required"),
+  body("token")
+    .trim()
+    .notEmpty()
+    .withMessage("QR token is required")
+    .isUUID(4)
+    .withMessage("QR token must be a valid session id."),
 ];
 
 export const attendanceQueryValidator = [

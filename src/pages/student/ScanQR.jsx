@@ -3,6 +3,29 @@ import { useAuth } from "../../Context/AuthContext";
 import { QRVisual } from "../../Components/UI/QRMark";
 import Icon from "../../Components/UI/Icon";
 
+/** Accepts plain UUID (current format) or legacy JSON `{"token":"..."}` from old prints. */
+function parseAttendanceQrToken(text) {
+  const trimmed = String(text).trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && typeof parsed.token === "string") {
+      const inner = parsed.token.trim();
+      return inner || null;
+    }
+  } catch {
+    // not JSON — treat as raw token
+  }
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)
+  ) {
+    return trimmed;
+  }
+  return null;
+}
+
 export default function ScanQR() {
   const {
     currentUser,
@@ -17,7 +40,6 @@ export default function ScanQR() {
   const [error, setError] = useState("");
 
   const scannerRef = useRef(null);
-  const joinedClassIds = new Set(classes.map((cls) => cls.id));
   const assignedClasses = classes;
 
   useEffect(() => {
@@ -28,30 +50,13 @@ export default function ScanQR() {
     };
   }, []);
 
-  const markAttendanceFromPayload = async (payload) => {
-    const { sessionId, classId, expiresAt, teacherId } = payload;
-
-    if (!sessionId || !classId || !expiresAt) {
-      setError("Invalid QR code. Missing session details.");
+  const markAttendanceFromToken = async (qrToken) => {
+    if (!qrToken) {
+      setError("Invalid QR code. Could not read a session token.");
       return;
     }
 
-    if (Date.now() > new Date(expiresAt).getTime()) {
-      setError("This QR code has expired. Ask your teacher to generate a new one.");
-      return;
-    }
-
-    if (!joinedClassIds.has(classId)) {
-      setError("You are not enrolled in the class for this QR code.");
-      return;
-    }
-
-    const result = await addAttendanceRecord({
-      classId,
-      sessionId,
-      teacherId,
-      token: payload.token,
-    });
+    const result = await addAttendanceRecord({ token: qrToken });
 
     if (!result.success) {
       setError(result.error);
@@ -59,8 +64,9 @@ export default function ScanQR() {
     }
 
     setScanResult({
-      sessionId,
-      classId,
+      sessionId: result.record.sessionId,
+      classId: result.record.classId,
+      className: result.record.className,
       date: result.record.date,
       time: result.record.time,
     });
@@ -74,12 +80,13 @@ export default function ScanQR() {
     setScanning(false);
     setProgress(100);
 
-    try {
-      const payload = JSON.parse(text);
-      await markAttendanceFromPayload(payload);
-    } catch {
-      setError("Invalid QR code. Could not parse the session data.");
+    const qrToken = parseAttendanceQrToken(text);
+    if (!qrToken) {
+      setError("Invalid QR code. Expected a session token.");
+      return;
     }
+
+    await markAttendanceFromToken(qrToken);
   };
 
   const startScan = async () => {
@@ -118,7 +125,7 @@ export default function ScanQR() {
     }
   };
 
-  const useActiveSession = () => {
+  const useActiveSession = async () => {
     setError("");
     setScanResult(null);
 
@@ -136,7 +143,7 @@ export default function ScanQR() {
       return;
     }
 
-    markAttendanceFromPayload(payload);
+    await markAttendanceFromToken(payload.token);
   };
 
   const reset = () => {
@@ -214,8 +221,15 @@ export default function ScanQR() {
             <p className="text-slate-500 text-sm">
               {scanResult.date} at {scanResult.time}
             </p>
-            <p className="text-slate-600 text-xs mt-1 font-mono">
-              Class {scanResult.classId} - {scanResult.sessionId?.slice(0, 8)}
+            <p className="text-slate-600 text-xs mt-1">
+              {scanResult.className ? (
+                <span>{scanResult.className}</span>
+              ) : (
+                <span className="font-mono">Class {scanResult.classId}</span>
+              )}
+              {scanResult.sessionId ? (
+                <span className="font-mono"> · session {scanResult.sessionId.slice(0, 8)}…</span>
+              ) : null}
             </p>
             <button
               onClick={reset}

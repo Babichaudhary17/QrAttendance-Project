@@ -7,6 +7,7 @@ import {
   corsOptions,
   helmetOptions,
   sanitizeRequest,
+  verifyMutatingRequestOrigin,
 } from "./middleware/security.middleware.js";
 
 const app = express();
@@ -14,6 +15,7 @@ const app = express();
 app.disable("x-powered-by");
 app.use(helmet(helmetOptions));
 app.use(cors(corsOptions));
+app.use(verifyMutatingRequestOrigin);
 app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeRequest);

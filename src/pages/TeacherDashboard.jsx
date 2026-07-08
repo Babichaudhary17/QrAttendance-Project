@@ -5,11 +5,13 @@ import ClassList from "./teacher/ClassList";
 import ClassDetail from "./teacher/ClassDetail";
 import ViewAttendance from "./teacher/ViewAttendance";
 import ManageStudents from "./teacher/ManageStudents";
+import TeacherAttendanceReport from "./teacher/AttendanceReport";
 
 const NAV = [
-  { id: "classes", label: "Classes", icon: "calendar" },
-  { id: "attendance", label: "View Attendance", icon: "list" },
-  { id: "students", label: "Manage Students", icon: "users" },
+  { id: "classes",    label: "Classes",           icon: "calendar" },
+  { id: "attendance", label: "View Attendance",   icon: "list"     },
+  { id: "students",   label: "Manage Students",   icon: "users"    },
+  { id: "report",     label: "Attendance Report", icon: "chart"    },
 ];
 
 function Toast({ message, onDone }) {
@@ -70,6 +72,7 @@ export default function TeacherDashboard() {
     deleteClass,
     addStudentToClass,
     deleteStudent,
+    getAttendanceReport,
   } = useAuth();
   const [activeTab, setActiveTab] = useState("classes");
   const [selectedClass, setSelectedClass] = useState(null);
@@ -169,14 +172,18 @@ export default function TeacherDashboard() {
                 ? selectedClass.name
                 : activeTab === "attendance"
                   ? "View Attendance"
-                  : "Manage Students"}
+                  : activeTab === "report"
+                    ? "Attendance Report"
+                    : "Manage Students"}
             </h1>
             <p style={{ fontSize: "13px", color: "#64748b", marginTop: "4px" }}>
               {selectedClass
                 ? detailSubtitle
                 : activeTab === "attendance"
                   ? "Filter and track daily attendance records"
-                  : "Add and manage your student roster"}
+                  : activeTab === "report"
+                    ? "Generate a full class-wide student attendance report card"
+                    : "Add and manage your student roster"}
             </p>
           </div>
         )}
@@ -207,6 +214,12 @@ export default function TeacherDashboard() {
             onAdd={addStudentToClass}
             onDelete={deleteStudent}
             onShowToast={showToast}
+          />
+        )}
+        {activeTab === "report" && (
+          <TeacherAttendanceReport
+            classes={classes}
+            getAttendanceReport={getAttendanceReport}
           />
         )}
       </main>

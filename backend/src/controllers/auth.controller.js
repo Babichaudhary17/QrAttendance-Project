@@ -99,8 +99,8 @@ export const registerUser = asyncHandler(async (req, res) => {
             role,
             teacherId: role === "teacher" ? teacherId : undefined,
             studentId: role === "student" ? studentId : undefined,
-            class: role === "student" ? assignedClass._id : undefined,
-            studentClass: role === "student" ? assignedClass.name : undefined,
+            class: role === "student" ? assignedClass?._id : undefined,
+            studentClass: role === "student" ? assignedClass?.name : undefined,
           },
         ],
         { session }
@@ -158,7 +158,12 @@ export const loginUser = asyncHandler(async (req, res) => {
         { path: "semester", select: "name code number" }
       ]);
 
-    if (!user || !(await user.matchPassword(password))) {
+    if (!user) {
+      res.status(404);
+      throw new Error("No account was found with this email.");
+    }
+
+    if (!(await user.matchPassword(password))) {
       res.status(401);
       throw new Error("Invalid email or password.");
     }
@@ -236,5 +241,14 @@ export const updateAdminCredentials = asyncHandler(async (req, res) => {
     success: true,
     message: "Admin credentials updated successfully.",
     data: buildAuthResponse(user),
+  });
+});
+
+export const logoutUser = asyncHandler(async (req, res) => {
+  // JWT is stateless — the client drops the token. This endpoint exists for
+  // API completeness and future token-blacklist / refresh-token revocation.
+  res.status(200).json({
+    success: true,
+    message: "Logged out successfully.",
   });
 });

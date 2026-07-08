@@ -77,7 +77,9 @@ export const markAttendance = asyncHandler(async (req, res) => {
       throw new Error("Attendance session was not found, is expired, or is no longer active.");
     }
 
-    const classDoc = await Class.findOne({ _id: session.class, isActive: true }).select("students");
+    const classDoc = await Class.findOne({ _id: session.class, isActive: true })
+      .select("students teacher")
+      .populate("teacher", "name");
 
     if (!classDoc?.students.some((id) => String(id) === String(req.user._id))) {
       res.status(403);
@@ -109,7 +111,7 @@ export const markAttendance = asyncHandler(async (req, res) => {
     });
 
     await record.populate("student", "name studentId");
-    await record.populate("class", "name");
+    await record.populate({ path: "class", select: "name teacher", populate: { path: "teacher", select: "name" } });
 
     res.status(201).json({
       success: true,

@@ -13,7 +13,8 @@ export const runInTransaction = async (operation) => {
     const transactionUnsupported =
       error.codeName === "IllegalOperation" ||
       error.message?.includes("Transaction numbers are only allowed") ||
-      error.message?.includes("replica set member or mongos");
+      error.message?.includes("replica set member or mongos") ||
+      error.message?.includes("does not support retryable writes");
 
     if (!transactionUnsupported) {
       throw error;

@@ -49,6 +49,10 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Class",
     },
+    studentClass: {
+      type: String,
+      trim: true,
+    },
     department: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Department",

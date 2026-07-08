@@ -1,19 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../Context/AuthContext";
 import Icon from "../../Components/UI/Icon";
 
-function getClassCodeFromPath() {
-  const match = window.location.pathname.match(/^\/join\/([^/]+)$/);
-  return match ? decodeURIComponent(match[1]) : "";
-}
-
 export default function JoinClass() {
+  const { classCode }   = useParams();
+  const navigate        = useNavigate();
   const { currentUser, getClassInvite, joinClass, refreshWorkspace } = useAuth();
-  const classCode = useMemo(getClassCodeFromPath, []);
+
   const [classInfo, setClassInfo] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [joining, setJoining] = useState(false);
-  const [toast, setToast] = useState({ type: "", message: "" });
+  const [loading,   setLoading]   = useState(true);
+  const [joining,   setJoining]   = useState(false);
+  const [toast,     setToast]     = useState({ type: "", message: "" });
 
   useEffect(() => {
     let active = true;
@@ -24,17 +22,16 @@ export default function JoinClass() {
 
       try {
         const data = await getClassInvite(classCode);
-        if (active) {
-          setClassInfo(data.class);
-        }
+        if (active) setClassInfo(data.class);
       } catch (error) {
         if (active) {
-          setToast({ type: "error", message: error.message || "Class invitation could not be loaded." });
+          setToast({
+            type: "error",
+            message: error.message || "Class invitation could not be loaded.",
+          });
         }
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
@@ -45,9 +42,7 @@ export default function JoinClass() {
     }
 
     loadInvite();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [classCode, currentUser?.role]);
 
   const handleJoin = async () => {
@@ -65,18 +60,14 @@ export default function JoinClass() {
     setToast({ type: "success", message: `Joined ${result.class.name} successfully.` });
   };
 
-  const goDashboard = () => {
-    window.history.pushState({}, "", "/");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
       <div className="w-full max-w-lg border border-slate-800 bg-slate-900 rounded-2xl p-6 shadow-2xl">
         <button
-          onClick={goDashboard}
-          className="mb-5 text-sm text-slate-400 hover:text-white transition-colors"
+          onClick={() => navigate("/student/dashboard", { replace: true })}
+          className="mb-5 text-sm text-slate-400 hover:text-white transition-colors flex items-center gap-1.5"
         >
+          <Icon name="arrowLeft" className="w-3.5 h-3.5" />
           Back to dashboard
         </button>
 
@@ -89,7 +80,7 @@ export default function JoinClass() {
 
         {loading && (
           <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950 px-4 py-5 text-sm text-slate-400">
-            Loading class invitation...
+            Loading class invitation…
           </div>
         )}
 
@@ -115,7 +106,7 @@ export default function JoinClass() {
               disabled={joining || classInfo.alreadyJoined}
               className="w-full rounded-xl bg-emerald-500 py-3.5 text-sm font-black text-white hover:bg-emerald-400 disabled:opacity-60 disabled:hover:bg-emerald-500 transition-colors"
             >
-              {classInfo.alreadyJoined ? "Already Joined" : joining ? "Joining..." : "Join Class"}
+              {classInfo.alreadyJoined ? "Already Joined" : joining ? "Joining…" : "Join Class"}
             </button>
           </div>
         )}

@@ -153,19 +153,23 @@ export function AuthProvider({ children }) {
     refreshWorkspace();
   }, [token, currentUser?.id]);
 
-  const login = async (email, password, role) => {
+  const login = async (email, password) => {
     try {
       const response = await axios.post(`${API_URL}/auth/login`, { email, password });
       const data = response.data.data;
 
-      if (role && data.user.role !== role) {
-        return { success: false, error: `This account is not a ${role} account.` };
-      }
-
       persistAuth(data.user, data.token);
-      return { success: true };
+      // Return the role so the LoginPage can redirect to the correct dashboard
+      // immediately, without waiting for a re-render cycle.
+      return { success: true, role: data.user.role };
     } catch (error) {
-      return { success: false, error: error.response?.data?.message || error.message };
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message,
+        // Expose status so the caller can distinguish 404 (email not found)
+        // from 401 (wrong password) and show appropriate UI.
+        status: error.response?.status,
+      };
     }
   };
 
@@ -192,16 +196,32 @@ export function AuthProvider({ children }) {
         }
       }
 
-      const response = await axios.post(`${API_URL}/auth/register`, body);
+      await axios.post(`${API_URL}/auth/register`, body);
 
-      persistAuth(response.data.data.user, response.data.data.token);
+      // Do NOT auto-login after registration. The RegisterPage shows a success
+      // screen then navigates to /login — persisting auth here would cause the
+      // Router to redirect straight to the dashboard, bypassing that flow.
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || error.message };
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Best-effort server-side logout (for future token blacklisting).
+    // We clear the local session regardless of whether the API call succeeds.
+    try {
+      if (token) {
+        await axios.post(
+          `${API_URL}/auth/logout`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+    } catch {
+      // Ignore — local session is cleared below regardless.
+    }
+
     setCurrentUser(null);
     setToken("");
     setClasses([]);
@@ -372,6 +392,15 @@ export function AuthProvider({ children }) {
     });
   };
 
+  const getAttendanceReport = async (classId) => {
+    try {
+      const data = await request(`/attendance/report/${classId}`);
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const addAttendanceRecord = async ({ token: qrToken }) => {
     try {
       const data = await request("/attendance/mark", {
@@ -419,6 +448,7 @@ export function AuthProvider({ children }) {
         addStudentToClass,
         deleteStudent,
         addAttendanceRecord,
+        getAttendanceReport,
       }}
     >
       {children}

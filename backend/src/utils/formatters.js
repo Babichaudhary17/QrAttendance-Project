@@ -74,6 +74,7 @@ export const toAttendanceDto = (record) => ({
   classId: String(record.class?._id ?? record.class),
   class: String(record.class?._id ?? record.class),
   className: record.class?.name,
+  teacherName: record.class?.teacher?.name ?? null,
   sessionId: String(record.qrSession?._id ?? record.qrSession),
   date: record.markedAt.toISOString().slice(0, 10),
   time: record.markedAt.toLocaleTimeString([], {
@@ -82,3 +83,4 @@ export const toAttendanceDto = (record) => ({
   }),
   status: record.status,
 });
+

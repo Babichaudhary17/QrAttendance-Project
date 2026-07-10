@@ -33,8 +33,24 @@ export const sanitizeRequest = (req, _res, next) => {
 
 const mutatingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-export const allowedBrowserOrigins = () =>
-  new Set([env.clientUrl, "http://127.0.0.1:5173", "http://localhost:5173"]);
+/**
+ * Build the set of allowed browser origins from CLIENT_URL.
+ * CLIENT_URL may be a single URL or a comma-separated list, e.g.:
+ *   CLIENT_URL=https://your-app.vercel.app,http://localhost:5173
+ * localhost variants are always included for local development.
+ */
+export const allowedBrowserOrigins = () => {
+  const fromEnv = (env.clientUrl || "")
+    .split(",")
+    .map((u) => u.trim())
+    .filter(Boolean);
+
+  return new Set([
+    ...fromEnv,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+  ]);
+};
 
 /**
  * Rejects browser-originated state changes from disallowed sites. JWT auth uses

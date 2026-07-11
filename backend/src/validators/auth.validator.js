@@ -39,3 +39,22 @@ export const adminCredentialsValidator = [
     .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
     .withMessage("New password must be at least 8 characters and include upper, lower, number, and symbol characters"),
 ];
+
+export const forgotPasswordValidator = [
+  body("email").isEmail().withMessage("Valid email is required"),
+];
+
+export const verifyOtpValidator = [
+  body("email").isEmail().withMessage("Valid email is required"),
+  body("code")
+    .trim()
+    .isLength({ min: 6, max: 6 })
+    .withMessage("Verification code must be exactly 6 digits"),
+];
+
+export const resetPasswordValidator = [
+  body("resetToken").notEmpty().withMessage("Reset token is required"),
+  body("newPassword")
+    .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
+    .withMessage("Password must be at least 8 characters and include upper, lower, number, and symbol characters"),
+];

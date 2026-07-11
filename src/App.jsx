@@ -6,6 +6,7 @@ import RegisterPage     from "./pages/RegisterPage";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import AdminDashboard   from "./pages/AdminDashboard";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import JoinClass        from "./pages/student/JoinClass";
 import MobileScanPage   from "./pages/student/MobileScanPage";
 import Icon             from "./Components/UI/Icon";
@@ -46,19 +47,11 @@ function AccessDenied() {
   );
 }
 
-/* ── Route guards ────────────────────────────────────────────────────── */
 
-/**
- * ProtectedRoute — renders children only for authenticated users with the
- * correct role. Unauthenticated visitors are sent to /login. Users with the
- * wrong role see an AccessDenied screen. Admins bypass role checks (they can
- * view any protected page via the admin dashboard).
- */
 function ProtectedRoute({ children, allowedRole }) {
   const { currentUser, loading } = useAuth();
 
-  // Show spinner only during the initial cold-load (token in sessionStorage
-  // but the workspace hasn't been validated yet — no currentUser yet).
+
   if (loading && !currentUser) return <LoadingScreen />;
   if (!currentUser)             return <Navigate to="/login" replace />;
   if (currentUser.forcePasswordReset) return <ForcePasswordReset />;
@@ -67,10 +60,7 @@ function ProtectedRoute({ children, allowedRole }) {
   return children;
 }
 
-/**
- * PublicRoute — renders children only for guests. Authenticated users are
- * redirected to their role-appropriate dashboard immediately.
- */
+
 function PublicRoute({ children }) {
   const { currentUser, loading } = useAuth();
 
@@ -170,6 +160,7 @@ function AppRoutes() {
         {/* ── Public routes (redirect to dashboard if already logged in) ── */}
         <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
 
         {/* ── Role-gated protected routes ─────────────────────────────── */}
         <Route

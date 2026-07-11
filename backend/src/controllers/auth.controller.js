@@ -1,9 +1,14 @@
+import crypto from "node:crypto";
+import jwt from "jsonwebtoken";
 import User from "../models/User.model.js";
+import Otp from "../models/Otp.model.js";
 import Class from "../models/Class.model.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import generateToken from "../utils/generateToken.js";
 import { toClassDto } from "../utils/formatters.js";
 import { runInTransaction } from "../utils/transactions.js";
+import { env } from "../config/env.js";
+import { sendOtpEmail } from "../services/email.service.js";
 
 const buildAuthResponse = (user) => ({
   user: {
@@ -250,5 +255,126 @@ export const logoutUser = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Logged out successfully.",
+  });
+});
+
+/* ── Forgot Password Flow ──────────────────────────────────────────── */
+
+const OTP_EXPIRY_MINUTES = 10;
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  if (!user) {
+    res.status(404);
+    throw new Error("No account was found with this email address.");
+  }
+
+  // Invalidate any previous OTPs for this email
+  await Otp.deleteMany({ email: user.email });
+
+  // Generate a cryptographically secure 6-digit code
+  const plainCode = String(crypto.randomInt(100000, 999999));
+
+  // Save hashed OTP with 10-minute expiry
+  await Otp.create({
+    email: user.email,
+    code: plainCode,
+    expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+  });
+
+  // Send the OTP via email
+  await sendOtpEmail(user.email, plainCode);
+
+  res.status(200).json({
+    success: true,
+    message: "Verification code sent to your email.",
+  });
+});
+
+export const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Find the most recent unused OTP for this email
+  const otpRecord = await Otp.findOne({
+    email: normalizedEmail,
+    used: false,
+  }).sort({ createdAt: -1 });
+
+  if (!otpRecord) {
+    res.status(400);
+    throw new Error("No verification code found. Please request a new one.");
+  }
+
+  // Check expiry
+  if (otpRecord.expiresAt < new Date()) {
+    res.status(410);
+    throw new Error("Verification code has expired. Please request a new one.");
+  }
+
+  // Compare the plain code against the stored hash
+  const isMatch = await otpRecord.matchCode(code);
+
+  if (!isMatch) {
+    res.status(400);
+    throw new Error("Invalid verification code.");
+  }
+
+  // Mark OTP as used so it cannot be reused
+  otpRecord.used = true;
+  await otpRecord.save();
+
+  // Generate a short-lived reset token (15 minutes)
+  const resetToken = jwt.sign(
+    { email: normalizedEmail, purpose: "password-reset" },
+    env.jwtSecret,
+    { expiresIn: "15m" }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Verification successful.",
+    data: { resetToken },
+  });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+
+  // Verify the reset token
+  let payload;
+  try {
+    payload = jwt.verify(resetToken, env.jwtSecret);
+  } catch {
+    res.status(401);
+    throw new Error("Reset link has expired or is invalid. Please start over.");
+  }
+
+  if (payload.purpose !== "password-reset") {
+    res.status(401);
+    throw new Error("Invalid reset token.");
+  }
+
+  const user = await User.findOne({ email: payload.email }).select("+password");
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User account not found.");
+  }
+
+  // Update password — the pre-save hook will hash it
+  user.password = newPassword;
+  user.forcePasswordReset = false;
+  await user.save();
+
+  // Clean up all OTPs for this email
+  await Otp.deleteMany({ email: payload.email });
+
+  res.status(200).json({
+    success: true,
+    message: "Password reset successfully. You can now sign in with your new password.",
   });
 });

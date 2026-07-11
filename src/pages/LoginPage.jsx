@@ -103,6 +103,16 @@ export default function LoginPage() {
               onChange={setPassword}
               placeholder="Your password"
             />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => navigate("/forgot-password")}
+                className="text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors"
+              >
+                Forgot Password?
+              </button>
+            </div>
+
 
             {/* Generic error (wrong password, server error, etc.) */}
             {error && (

@@ -52,6 +52,12 @@ export const env = {
   ),
   authRateLimitMax: parsePositiveInt("AUTH_RATE_LIMIT_MAX", process.env.AUTH_RATE_LIMIT_MAX, 5),
   adminRateLimitMax: parsePositiveInt("ADMIN_RATE_LIMIT_MAX", process.env.ADMIN_RATE_LIMIT_MAX, 120),
+
+  // SMTP — optional; required only when using the forgot-password email flow
+  smtpHost: process.env.SMTP_HOST || "",
+  smtpPort: parsePositiveInt("SMTP_PORT", process.env.SMTP_PORT, 587),
+  smtpUser: process.env.SMTP_USER || "",
+  smtpPass: process.env.SMTP_PASS || "",
 };
 
 export const isProduction = env.nodeEnv === "production";

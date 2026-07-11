@@ -9,7 +9,7 @@ function parseToken(text) {
   try {
     const p = JSON.parse(t);
     if (p && typeof p === "object" && typeof p.token === "string") return p.token.trim() || null;
-  } catch {}
+  } catch { }
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(t)) return t;
   return null;
 }
@@ -31,7 +31,7 @@ function playSuccessBeep() {
       osc.start(ctx.currentTime + i * 0.12);
       osc.stop(ctx.currentTime + i * 0.12 + 0.22);
     });
-  } catch {}
+  } catch { }
 }
 
 /* ── Corner brackets SVG overlay ────────────────────────── */
@@ -129,7 +129,7 @@ export default function ScanQR({ fullscreen = false, onDone }) {
   useEffect(() => {
     return () => {
       if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(() => {});
+        scannerRef.current.stop().catch(() => { });
       }
     };
   }, []);
@@ -148,7 +148,7 @@ export default function ScanQR({ fullscreen = false, onDone }) {
   const stopScanner = useCallback(async () => {
     try {
       if (scannerRef.current?.isScanning) await scannerRef.current.stop();
-    } catch {}
+    } catch { }
   }, []);
 
   /* ── Submit token to backend ───────────────────────────── */
@@ -161,10 +161,10 @@ export default function ScanQR({ fullscreen = false, onDone }) {
     }
     playSuccessBeep();
     setResult({
-      className:   res.record.className   || "Class",
+      className: res.record.className || "Class",
       teacherName: res.record.teacherName || null,
-      date:        res.record.date,
-      time:        res.record.time,
+      date: res.record.date,
+      time: res.record.time,
     });
     setPhase("success");
   }, [addAttendanceRecord]);
@@ -200,7 +200,7 @@ export default function ScanQR({ fullscreen = false, onDone }) {
         { facingMode: "environment" },
         { fps: 15, qrbox: { width: 240, height: 240 } },
         (text) => handleDecoded(text),
-        () => {}
+        () => { }
       );
     } catch (err) {
       setPhase("error");
@@ -219,7 +219,7 @@ export default function ScanQR({ fullscreen = false, onDone }) {
     setResult(null);
 
     const classId = classes.find((c) => activeQrSessions[c.id])?.id ?? null;
-    const payload  = classId ? activeQrSessions[classId] : null;
+    const payload = classId ? activeQrSessions[classId] : null;
 
     if (!payload) { setErrorMsg("No active teacher QR session was found."); setPhase("error"); return; }
     if (Date.now() > payload.expiresAt) {
@@ -339,8 +339,13 @@ export default function ScanQR({ fullscreen = false, onDone }) {
   if (phase === "scanning") {
     return (
       <div className={`relative flex flex-col items-center justify-center bg-black ${fullscreen ? "min-h-screen" : "rounded-2xl overflow-hidden"}`} style={{ minHeight: fullscreen ? "100dvh" : 400 }}>
-        {/* Camera feed */}
-        <div id="qr-video-region" className="absolute inset-0 w-full h-full [&>video]:w-full [&>video]:h-full [&>video]:object-cover [&>*:last-child]:hidden" />
+
+        <div className="absolute inset-0 w-full h-full overflow-hidden">
+          <div
+            id="qr-video-region"
+            className="!absolute !inset-0 !w-full !h-full [&>video]:!w-full [&>video]:!h-full [&>video]:!object-cover [&>*:last-child]:!hidden"
+          />
+        </div>
 
         {/* Dark vignette overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/70 pointer-events-none" />
